@@ -167,16 +167,18 @@ The scorer must return the summed logit, not the element-wise products `w_i * x_
 | 4: 7 to 13 Dec | Polish, rehearse, submit | Finish the report. Rehearse the demo twice. Record a backup video. Bug fixes only. | Report final, two rehearsals done |
 | 14 Dec | Deliver | Submit the report and give the live demo | |
 
+Week 2 milestone (one command-line request returns the right decision) reached on 16 November.
+
 Four workstreams run in parallel: model and data, HE core, services and API, screens and evaluation. The team picks tasks at a short meeting at the start of each week.
 
 ### Week 1 checklist
 
-- [ ] Install TenSEAL and run one encrypted dot product end to end
-- [ ] Pick the dataset and freeze the feature list
-- [ ] Train logistic regression, record plaintext accuracy and AUC
-- [ ] Export weights and scaler in a format both services can load
-- [ ] Freeze the API contract
-- [ ] Create the repo layout and a `requirements.txt` with pinned versions
+- [x] Install TenSEAL and run one encrypted dot product end to end
+- [x] Pick the dataset and freeze the feature list
+- [x] Train logistic regression, record plaintext accuracy and AUC
+- [x] Export weights and scaler in a format both services can load
+- [x] Freeze the API contract
+- [x] Create the repo layout and a `requirements.txt` with pinned versions
 
 ## Demo screens
 
