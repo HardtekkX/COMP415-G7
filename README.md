@@ -14,5 +14,10 @@ and schedule. Developer notes and commands are in [CLAUDE.md](CLAUDE.md).
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+python -m training.train   # downloads the dataset, writes training/artifacts/
 python -m pytest
 ```
+
+`training/artifacts/model.json` (weights, bias, scaler) is committed.
+`training/artifacts/test_split.csv` and the downloaded dataset are git-ignored;
+rerun `python -m training.train` to regenerate them.

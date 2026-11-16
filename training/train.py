@@ -11,9 +11,11 @@ Features (UCI attribute in brackets):
   installment_rate         [A8]  instalment as % of disposable income, 1-4
   existing_credits         [A16] number of credits already at this bank
   checking_status          [A1]  0 overdrawn, 1 0-200 DM, 2 >=200 DM,
-                                 3 no checking account (order of observed risk)
-  savings_band             [A6]  0 <100 DM or unknown/none, 1 100-500,
-                                 2 500-1000, 3 >=1000
+                                 3 no checking account (ordered by default rate
+                                 on the training split; checked at run time)
+  savings_band             [A6]  0 <100 DM, 1 100-500 DM, 2 unknown/no savings,
+                                 3 500-1000 DM, 4 >=1000 DM (ordered by default
+                                 rate on the training split; checked at run time)
   employment_band          [A7]  0 unemployed, 1 <1y, 2 1-4y, 3 4-7y, 4 >=7y
   other_installment_plans  [A14] 1 if instalments at another bank or store
   owns_home                [A15] 1 if the applicant owns their home
@@ -74,7 +76,7 @@ FEATURES = [
 ]
 
 CHECKING = {"A11": 0, "A12": 1, "A13": 2, "A14": 3}
-SAVINGS = {"A61": 0, "A62": 1, "A63": 2, "A64": 3, "A65": 0}
+SAVINGS = {"A61": 0, "A62": 1, "A65": 2, "A63": 3, "A64": 4}
 EMPLOYMENT = {"A71": 0, "A72": 1, "A73": 2, "A74": 3, "A75": 4}
 
 MANUAL_STEP = f"""Could not download the dataset. Manual step:
@@ -120,12 +122,35 @@ def build_features(raw: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
     return X, y
 
 
+def check_risk_order(
+    name: str, mapping: dict[str, int], codes_train: pd.Series, y_train: pd.Series
+) -> None:
+    """`mapping` must rank categories by default rate on the training split only.
+
+    Codes run from riskiest (0) upwards. The order is fixed in the mapping so
+    the bank can encode applicants without the training data; this check makes
+    sure it was not chosen by looking at the test rows.
+    """
+    rates = y_train.groupby(codes_train).mean()
+    derived = list(rates.sort_values(ascending=False).index)
+    expected = sorted(mapping, key=mapping.get)
+    if derived != expected:
+        raise ValueError(
+            f"{name} order {expected} does not match the training-split "
+            f"default rates {rates.round(3).to_dict()}"
+        )
+
+
 def main() -> None:
     raw = pd.read_csv(fetch_dataset(), sep=" ", header=None, names=RAW_COLUMNS)
     X, y = build_features(raw)
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=TEST_SIZE, random_state=SEED, stratify=y
     )
+
+    train_raw = raw.loc[X_train.index]
+    check_risk_order("checking_status", CHECKING, train_raw["checking"], y_train)
+    check_risk_order("savings_band", SAVINGS, train_raw["savings"], y_train)
 
     scaler = StandardScaler().fit(X_train)
     model = LogisticRegression(max_iter=1000, random_state=SEED)
