@@ -5,8 +5,8 @@ tenseal==0.3.18   # CKKS; cp312 wheel verified 2026-11-16
 numpy==2.5.5
 
 # --- To add and pin in week 1 ---
-# scikit-learn==
-# pandas==
+scikit-learn==1.9.1
+pandas==3.1.1
 # fastapi==
 # uvicorn==
 # httpx==          # bank -> scorer HTTP client

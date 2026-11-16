@@ -1,0 +1,65 @@
+{
+  "description": "Logistic regression on UCI Statlog German Credit; output = probability of default. Apply (x - scaler_mean) / scaler_scale in feature_order, logit = weights . x_scaled + bias.",
+  "feature_order": [
+    "duration_months",
+    "credit_amount",
+    "installment_rate",
+    "existing_credits",
+    "checking_status",
+    "savings_band",
+    "employment_band",
+    "other_installment_plans",
+    "owns_home",
+    "has_guarantor"
+  ],
+  "weights": [
+    0.2772896662796936,
+    0.14719981795501694,
+    0.2648113696269652,
+    -0.11869268269513225,
+    -0.8452953201422769,
+    -0.2470549680572787,
+    -0.2760670390094723,
+    0.27879834103799245,
+    -0.16178734375586024,
+    -0.255385189412642
+  ],
+  "bias": -1.10027014329236,
+  "scaler_mean": [
+    20.802857142857142,
+    3261.78,
+    2.974285714285714,
+    1.4142857142857144,
+    1.5871428571428572,
+    0.35714285714285715,
+    2.342857142857143,
+    0.17,
+    0.7214285714285714,
+    0.045714285714285714
+  ],
+  "scaler_scale": [
+    12.322035678624944,
+    2866.66707921038,
+    1.1285497285436379,
+    0.5902265217175313,
+    1.255663902776015,
+    0.7825911957029906,
+    1.2187313577852092,
+    0.375632799419859,
+    0.44829609384323443,
+    0.20886476437139503
+  ],
+  "positive_class": "default",
+  "metrics": {
+    "test_accuracy": 0.7533,
+    "test_auc": 0.7615
+  },
+  "training": {
+    "dataset": "UCI Statlog German Credit (german.data)",
+    "dataset_sha256": "b21f3d81db8071257d5ff1deaeba1fd4303b62712e6fcc9715c7a86202cb5871",
+    "seed": 415,
+    "test_size": 0.3,
+    "n_train": 700,
+    "n_test": 300
+  }
+}
