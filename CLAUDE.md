@@ -40,6 +40,16 @@ API (see plan; binary values as base64):
 The scorer returns the summed logit, never element-wise `w_i * x_i` (the bank
 could divide by `x_i` and recover the weights).
 
+## CKKS configuration (fixed, see plan)
+
+N=8192, coefficient chain `[60, 40, 60]`, scale 2^40, Galois keys only for the
+rotation steps the sum needs (derived from the vector length), scorer context
+without secret key, public key or relinearisation keys. Lives in `common/he.py`;
+`USE_MINIMAL_GALOIS_KEYS=false` falls back to TenSEAL's `generate_galois_keys()`.
+Measured for 10 features: context 2.9 MB (one-off), ciphertext 235 KB, logit
+error about 1e-6, about 4 ms per score. A server-side sigmoid (stretch goal)
+would need relinearisation keys and more levels.
+
 ## Security rules for the code
 
 - The HE secret key never leaves the bank service. The context sent to the scorer must be serialized without the secret key.

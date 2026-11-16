@@ -31,7 +31,7 @@ Two separate services and one offline script.
 2. Bank service scales the features with the scaler from training.
 3. Bank service replaces the national ID with `HMAC-SHA256(bank_key, national_id)`.
 4. Bank service encrypts the feature vector with CKKS.
-5. Bank service sends the pseudonym, the ciphertext and the `context_id` of its registered public context to the scoring service. The public context itself (about 35 MB, mostly rotation keys) is registered once with `POST /contexts`, not sent with every request.
+5. Bank service sends the pseudonym, the ciphertext and the `context_id` of its registered public context to the scoring service. The public context itself (about 2.9 MB, almost all rotation keys) is registered once with `POST /contexts`, not sent with every request.
 6. Scoring service computes `w · x + b` on the ciphertext. The result is an encrypted logit.
 7. Scoring service returns the encrypted logit.
 8. Bank service decrypts, applies the sigmoid, and shows the probability and a decision: approve, review or reject.
@@ -58,6 +58,29 @@ The sigmoid runs at the bank after decryption, so the encrypted part is a single
 | Should have | HTTPS with a self-signed certificate, Docker Compose |
 
 Language: Python only. Check TenSEAL and Python version compatibility on day one. If TenSEAL does not install on the team's machines by 18 November, switch to the fallback.
+
+## CKKS configuration (chosen 16 November 2026)
+
+Measured with `notebooks/he_params.py`; implemented in `common/he.py`.
+
+| Parameter | Value | Why |
+|---|---|---|
+| `poly_modulus_degree` N | 8192 | 4096 slots, plenty for one feature vector; 128-bit security with room for a 40-bit level |
+| Coefficient modulus chain | `[60, 40, 60]` (160 bits, limit 218) | One rescale: the ciphertext × plaintext multiply. Then the plaintext bias is added at the same scale |
+| Scale | 2^40 | Matches the 40-bit middle prime |
+| Galois (rotation) keys | Only the steps the encrypted sum needs, derived from the vector length: 1, 2, 4, ... below the next power of two (10 features: 1, 2, 4, 8) | TenSEAL's default makes keys for every power-of-two step; we generate only the needed ones with `sealapi`. `USE_MINIMAL_GALOIS_KEYS=false` falls back to the default |
+| Scorer context | Galois keys only. No secret key, no public key, no relinearisation keys | The scorer never decrypts, never encrypts, and never multiplies two ciphertexts |
+
+Measured numbers for 10 features:
+
+| Measure | Value |
+|---|---|
+| Public context sent to the scorer | 2.9 MB, once per bank (`POST /contexts`) |
+| Ciphertext per request | 235 KB |
+| Logit error after decryption | about 1e-6 |
+| Scorer time for `w · x + b` | about 4 ms |
+
+Stretch goal note: a server-side polynomial sigmoid multiplies ciphertexts, so it would need the relinearisation keys in the scorer context and a longer chain (one extra level per multiplication depth), which means larger keys and ciphertexts. This configuration does not support it.
 
 ## Proposed repo layout
 
