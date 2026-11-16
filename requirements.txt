@@ -1,4 +1,5 @@
-# Pin every version once installed and tested (Week 1 checklist).
+# Python 3.12. Every version is pinned and tested together; change a pin only
+# after the full test suite passes with the new version.
 
 pytest==9.2.0
 tenseal==0.3.18   # CKKS; cp312 wheel verified 2026-11-16

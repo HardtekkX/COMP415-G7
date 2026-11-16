@@ -7,7 +7,7 @@ The bank encrypts the applicant's features with homomorphic encryption (CKKS). T
 - **Team:** 4 members, tasks unassigned
 - **Due:** around 14 December 2026
 - **Deliverables:** report of about 2000 words, live demo of about 30 minutes
-- **Full plan with legal background and sources:** `COMP415 G7 Project Plan v2` (PDF)
+- **Full plan with legal background and sources:** COMP415 G7 Project Plan v3 (PDF), shared with the team separately, not stored in this repo
 
 ## Why
 
@@ -54,13 +54,13 @@ The sigmoid runs at the bank after decryption, so the encrypted part is a single
 |---|---|
 | Homomorphic encryption | TenSEAL (CKKS). Fallback: OpenFHE |
 | Model | scikit-learn `LogisticRegression` |
-| Dataset | German Credit (UCI) or "Give Me Some Credit" (Kaggle), to be decided in week 1 |
+| Dataset | UCI Statlog German Credit (`german.data`, 1000 rows), 10 features |
 | Services | FastAPI, one app per party |
 | Pseudonym | Python `hmac` and `hashlib` |
 | Front end | Streamlit |
-| Should have | HTTPS with a self-signed certificate, Docker Compose |
+| Optional | HTTPS with a self-signed certificate, Docker Compose |
 
-Language: Python only. Check TenSEAL and Python version compatibility on day one. If TenSEAL does not install on the team's machines by 18 November, switch to the fallback.
+Language: Python only. Python 3.12 is required: TenSEAL 0.3.18 ships a wheel for CPython 3.12 (cp312), and versions are pinned in `requirements.txt`.
 
 ## CKKS configuration (chosen 16 November 2026)
 
@@ -81,32 +81,37 @@ Measured numbers for 10 features:
 | Public context sent to the scorer | 2.9 MB, once per bank (`POST /contexts`) |
 | Ciphertext per request | 235 KB |
 | Logit error after decryption | about 1e-6 |
-| Scorer time for `w · x + b` | about 4 ms |
+| Scorer time for `w · x + b` | about 4 ms in-process (`notebooks/he_params.py`); about 5 ms as measured by the running scoring service |
 
 Stretch goal note: a server-side polynomial sigmoid multiplies ciphertexts, so it would need the relinearisation keys in the scorer context and a longer chain (one extra level per multiplication depth), which means larger keys and ciphertexts. This configuration does not support it.
 
-## Proposed repo layout
-
-A starting point. Change it in week 1 if the team prefers something else.
+## Repo layout
 
 ```
-bank_service/       FastAPI app: scaling, pseudonym, encrypt, decrypt, decision
-scoring_service/    FastAPI app: load weights, encrypted dot product
-common/             shared request and response schemas, serialization helpers
-training/           train.py, model.json (scorer), preprocessing.json (bank)
-ui/                 Streamlit screens: bank, scorer, comparison
+bank_service/       FastAPI app (POST /apply): scaling, pseudonym, encrypt, decrypt, decision;
+                    cli.py scores one test-set row; config.toml; keys/ (git-ignored)
+scoring_service/    FastAPI app: load weights, register contexts, encrypted dot product, demo endpoints
+common/             CKKS setup (he.py), shared request and response schemas, FastAPI helpers
+training/           train.py; artifacts/: model.json (scorer), preprocessing.json (bank),
+                    metrics.json, test_split.csv (git-ignored)
+ui/                 Streamlit app (app.py): Home, Bank, Scorer and Comparison pages in views/;
+                    demo_applicants.py writes the git-ignored demo_applicants.json
 scripts/            setup_demo.py: training, then demo applicants
-evaluation/         measurement scripts and results
-notebooks/          experiments, first TenSEAL test
-tests/              unit and end-to-end tests
-docs/               full project plan, report drafts
+evaluation/         measurement script and results (to do)
+notebooks/          he_spike.py (first TenSEAL test), he_params.py (CKKS parameter measurements)
+tests/              unit, UI and end-to-end tests
+docs/               report notes and drafts
 ```
 
-## Proposed API contract
+## API contract
 
-A draft to freeze in week 1. Binary values are base64 strings.
+Binary values are standard base64 strings. Every request body rejects unknown
+fields. A malformed request gets 422 with field locations only, never the
+input: `{"detail": "invalid request", "fields": ["body.pseudonym"]}`.
 
-`POST /contexts` on the scoring service registers the bank's public context once. The scorer keeps it in memory.
+### Scoring service (port 8001)
+
+`POST /contexts` registers the bank's public context. The scorer keeps it in memory, at most 100 contexts (`SCORER_MAX_CONTEXTS`); the oldest is evicted first.
 
 Request:
 
@@ -120,19 +125,21 @@ Response:
 
 ```json
 {
-  "context_id": "opaque string chosen by the scorer"
+  "context_id": "32 lowercase hex characters, random, issued by the scorer"
 }
 ```
 
-`POST /score` on the scoring service
+Returns 400 if the bytes are not a valid public CKKS context, including a context that holds a secret key.
+
+`POST /score`
 
 Request:
 
 ```json
 {
-  "pseudonym": "hex string, HMAC-SHA256 of the national ID",
+  "pseudonym": "64 lowercase hex characters, HMAC-SHA256 of the national ID",
   "context_id": "value returned by POST /contexts",
-  "ciphertext": "base64, encrypted feature vector"
+  "ciphertext": "base64, encrypted scaled feature vector"
 }
 ```
 
@@ -141,40 +148,82 @@ Response:
 ```json
 {
   "pseudonym": "same value as in the request",
-  "encrypted_logit": "base64, encrypted result"
+  "encrypted_logit": "base64, encrypted w · x + b"
 }
 ```
 
-Returns 404 if `context_id` is unknown (for example after a scorer restart); the bank then registers its context again.
+Returns 404 if `context_id` is unknown (for example after a scorer restart or an eviction); the bank then registers its context again and retries. Returns 422 for a wrong vector length or a malformed field, and 400 if the ciphertext cannot be read or scored with that context.
 
 The scorer must return the summed logit, not the element-wise products `w_i * x_i`: the bank chooses `x`, so it could divide each product by `x_i` and recover every model weight.
 
-`GET /health` on both services returns `{"status": "ok"}`.
-
-Demo-only endpoints on the scoring service (for the scorer screen; switched off with `SCORER_DEMO_ENDPOINTS=false`, which makes both return 404):
+Demo-only endpoints (for the scorer screen; switched off with `SCORER_DEMO_ENDPOINTS=false`, which makes both return 404):
 
 - `GET /activity` returns `{"records": [...]}`, the last 50 successful scores, newest first. Each record: `timestamp`, `pseudonym`, `context_id`, `ciphertext_bytes`, `ciphertext_slice` and `result_slice` (64 base64 characters from the middle of the ciphertext received and of the encrypted logit returned, so the demo shows encrypted payload rather than the serialization header), `ciphertext_sha256` and `result_sha256` (first 16 hex characters of the SHA-256 of the raw bytes), `compute_ms`.
 - `GET /contexts/summary` returns `{"count", "max_contexts", "contexts": [{"context_id", "size_bytes", "registered_at"}]}`.
 
+### Bank service (port 8000)
+
+`POST /apply` scores one applicant through the scoring service. This is the bank's own API: it takes plaintext data, none of which is sent to the scorer.
+
+Request:
+
+```json
+{
+  "national_id": "11 digits",
+  "features": {
+    "duration_months": 24, "credit_amount": 3500, "installment_rate": 3,
+    "existing_credits": 1, "checking_status": 1, "savings_band": 0,
+    "employment_band": 2, "other_installment_plans": 0, "owns_home": 1,
+    "has_guarantor": 0
+  }
+}
+```
+
+All ten features are integers, with ranges checked (see `bank_service/schemas.py`); their order must equal `feature_order` in `preprocessing.json`, which the bank checks at startup.
+
+Response:
+
+```json
+{
+  "pseudonym": "64 lowercase hex characters, as sent to the scorer",
+  "probability_of_default": 0.3653,
+  "decision": "approve | review | reject",
+  "logit": -0.5524,
+  "ciphertext_bytes": 235044,
+  "encrypted_logit_bytes": 131216,
+  "timings_ms": {"prepare": 0.1, "encrypt": 3.4, "scorer_call": 11.5, "decrypt": 0.4, "total": 15.4}
+}
+```
+
+Decision thresholds come from `bank_service/config.toml`: approve below 0.25, reject from 0.50, review in between. Returns 502 if the scoring service fails.
+
+### Both services
+
+`GET /health` returns `{"status": "ok"}`.
+
 ## Scope
 
-| Priority | What | Rule |
+| Priority | What | Status |
 |---|---|---|
-| Must have | One applicant scored end to end under CKKS. Two separate services. HMAC pseudonym. Three screens. Five measurements. | Done by 6 December |
-| Should have | HTTPS between services. Docker Compose. A few pre-loaded applicants with different outcomes. | Week 3, if the core is stable |
-| Cut first | Batch scoring with CKKS packing. Server-side polynomial sigmoid. Encrypted portfolio aggregate. Fraud-score scenario. | Only after everything above works |
+| Must have | One applicant scored end to end under CKKS. Two separate services. HMAC pseudonym. Three screens. | Done, 16 November |
+| Must have | Five measurements over the test set (`evaluation/`) | Open, due 6 December |
+| Done early | Six pre-loaded demo applicants, two each for approve, review and reject | Done, 16 November |
+| Optional | HTTPS between services. Docker Compose. | Only if the must-haves and report are on track |
+| Optional (stretch) | Batch scoring with CKKS packing. Server-side polynomial sigmoid. Encrypted portfolio aggregate. Fraud-score scenario. | Only after everything above works |
 
 ## Schedule
 
+Status on 16 November 2026: the core flow (training, both services, command-line scoring) and all three demo screens (Bank, Scorer, Comparison) are done, as are the six demo applicants.
+
 | Week | Goal | Tasks | Done when |
 |---|---|---|---|
-| 1: 16 to 22 Nov | Prove the risky parts and fix the interfaces | Run one encrypted dot product in a notebook. Pick the dataset and freeze the feature list. Train the model and export weights and scaler. Freeze the API contract. Set up the repo structure. | A notebook shows the encrypted score matching the plaintext score for one applicant |
-| 2: 23 to 29 Nov | Core flow between two services | Build the bank service and the scoring service. Connect them over the API. Start the bank screen. Choose and record the CKKS parameters. | One command-line request returns the right decision |
-| 3: 30 Nov to 6 Dec | Screens, measurements, report draft | Finish the three screens. Run the measurements over the test set. Add should-have items if stable. Draft the report. | Feature freeze on 6 December. Full demo runs on one laptop. |
-| 4: 7 to 13 Dec | Polish, rehearse, submit | Finish the report. Rehearse the demo twice. Record a backup video. Bug fixes only. | Report final, two rehearsals done |
+| 1: 16 to 22 Nov | Prove the risky parts and fix the interfaces | Done 16 Nov: encrypted dot product, dataset and features, model and exports, API contract, repo structure. | Done |
+| 2: 23 to 29 Nov | Core flow between two services | Done 16 Nov: bank and scoring services, CLI, CKKS parameters. | Done |
+| 3: 30 Nov to 6 Dec | Measurements and report draft | Done 16 Nov: the three screens. Open: evaluation script for the five measurements over the test set; report draft. Optional: HTTPS, Docker Compose. | Feature freeze on 6 December. Full demo runs on one laptop. |
+| 4: 7 to 13 Dec | Polish, rehearse, submit | Finish the report. Make the slides. Rehearse the demo twice. Record a backup video. Bug fixes only. | Report and slides final, two rehearsals done, backup video recorded |
 | 14 Dec | Deliver | Submit the report and give the live demo | |
 
-Week 2 milestone (one command-line request returns the right decision) reached on 16 November.
+Still to do: the evaluation script, the report, slides, two rehearsals and the backup video. Optional: HTTPS, Docker Compose and the stretch goals.
 
 Four workstreams run in parallel: model and data, HE core, services and API, screens and evaluation. The team picks tasks at a short meeting at the start of each week.
 
@@ -189,9 +238,12 @@ Four workstreams run in parallel: model and data, HE core, services and API, scr
 
 ## Demo screens
 
-- **Bank screen:** applicant form, decrypted probability, decision.
-- **Scorer screen:** exactly what the scoring service received and returned. A pseudonym and ciphertext bytes, no names or numbers.
-- **Comparison screen:** encrypted result next to the plaintext result for the same applicant.
+A Streamlit app (`streamlit run ui/app.py`) that talks to the two services over HTTP only; it never imports service code or reads the model weights.
+
+- **Home:** what the demo shows, whether both services are up, and whether the demo applicants exist.
+- **Bank screen:** pick one of the six demo applicants, edit the national ID or any feature, and request a score. Shows the decision, the probability of default and the thresholds. A "What left the bank" box puts what was sent (the pseudonym, the ciphertext size, the size of the encrypted logit that came back) next to what stayed (national ID and every feature value), plus a per-step timing table.
+- **Scorer screen:** built only from `GET /activity` and `GET /contexts/summary`. Shows the registered public contexts (count, sizes, no secret key), a list of what the scorer does not have, and a table of recent requests (time, pseudonym, context ID, ciphertext size, SHA-256 fingerprint, compute time). For a selected request: the full pseudonym and, for the ciphertext received and the encrypted result returned, a 64-character base64 slice from the middle and the fingerprint.
+- **Comparison screen:** one demo applicant scored through the encrypted path next to its plaintext probability from training: both probabilities, the difference, whether the decisions match, ciphertext size against plain JSON, and a timing chart. **Run all six** fills a table for all demo applicants with the largest difference and the number of matching decisions.
 
 ## What we measure
 
@@ -204,10 +256,3 @@ Four workstreams run in parallel: model and data, HE core, services and API, scr
 | Model quality | Accuracy and AUC of the model itself |
 
 Record the CKKS parameters used with every result.
-
-## Known limits
-
-- A real bureau combines records from many banks. Here one bank supplies all features. Cross-bank linking under encryption is out of scope.
-- The bank learns the raw logit, so with many queries it could estimate the model's weights.
-- CKKS is approximate. Wrong parameters give wrong scores or low security.
-- Whether HE ciphertext still counts as a customer secret under Turkish law is untested. We present HE as a technical measure, not a legal exemption.

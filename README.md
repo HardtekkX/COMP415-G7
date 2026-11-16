@@ -22,7 +22,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 python scripts/setup_demo.py   # once: trains the model, then picks the demo applicants
-python -m pytest               # about 20 s; includes an end-to-end run of both services
+python -m pytest               # about 25 s; includes an end-to-end run of both services
 ```
 
 `scripts/setup_demo.py` runs two steps you can also run on their own:
@@ -97,8 +97,8 @@ As of 16 November 2026. Built and tested (168 tests):
 |---|---|---|
 | Model | `training/` | 10 features, test accuracy 0.760 (baseline 0.700), AUC 0.770 |
 | CKKS setup | `common/he.py` | N=8192, chain [60, 40, 60], scale 2^40, minimal rotation keys |
-| Scoring service | `scoring_service/` | about 6 ms per encrypted score; public context 2.9 MB, sent once |
-| Bank service + CLI | `bank_service/` | ciphertext 235 KB per request; about 20 ms round trip on one laptop |
+| Scoring service | `scoring_service/` | about 5 ms per encrypted score as measured by the running service (about 4 ms in-process); public context 2.9 MB, sent once |
+| Bank service + CLI | `bank_service/` | ciphertext 235 KB per request; about 15–18 ms round trip on one laptop |
 | End to end | `tests/test_e2e.py` | 20 applicants, all decisions agree; max probability error 3.3e-7 over all 300 test rows |
 | Demo screens | `ui/` | Bank, Scorer, Comparison (Streamlit, HTTP only); six demo applicants agree on every decision |
 
@@ -110,11 +110,13 @@ never reads the weights, neither service logs national IDs or feature values.
 
 Still open, per [PROJECT_PLAN.md](PROJECT_PLAN.md):
 - The five measurements over the full test set (`evaluation/`).
-- Should have: HTTPS between services, Docker Compose, pre-loaded applicants.
-- Report draft, demo rehearsals, backup video.
+- Report, slides, two demo rehearsals, backup video.
+- Optional: HTTPS between services, Docker Compose, stretch goals.
 
-Note for the report: the test split was looked at while choosing the feature
-encodings, so 0.760 / 0.770 are not from an untouched holdout.
+Limitations and caveats for the report are collected in
+[docs/report_notes.md](docs/report_notes.md). One affects the numbers above: the
+test split was looked at while choosing the feature encodings, so 0.760 / 0.770
+are not from an untouched holdout.
 
 ## How we work
 

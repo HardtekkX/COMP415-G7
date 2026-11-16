@@ -58,7 +58,8 @@ rotation steps the sum needs (derived from the vector length), scorer context
 without secret key, public key or relinearisation keys. Lives in `common/he.py`;
 `USE_MINIMAL_GALOIS_KEYS=false` falls back to TenSEAL's `generate_galois_keys()`.
 Measured for 10 features: context 2.9 MB (one-off), ciphertext 235 KB, logit
-error about 1e-6, about 4 ms per score. A server-side sigmoid (stretch goal)
+error about 1e-6, about 4 ms per score in-process (about 5 ms as measured by
+the running service). A server-side sigmoid (stretch goal)
 would need relinearisation keys and more levels.
 
 ## Security rules for the code
@@ -77,36 +78,37 @@ would need relinearisation keys and more levels.
 |---|---|
 | Homomorphic encryption | TenSEAL (CKKS). Fallback: OpenFHE |
 | Model | scikit-learn `LogisticRegression` |
-| Dataset | German Credit (UCI) or Give Me Some Credit (Kaggle), TBD week 1 |
+| Dataset | UCI Statlog German Credit (`german.data`), 10 features |
 | Services | FastAPI, one app per party |
 | Pseudonym | Python `hmac` + `hashlib` |
 | Front end | Streamlit |
-| Should have | HTTPS (self-signed cert), Docker Compose |
+| Optional | HTTPS (self-signed cert), Docker Compose |
 
-Python only. Local Python is 3.12; confirm TenSEAL supports it before relying on
-it (switch to the fallback if it doesn't install by 18 November).
+Python only. Python 3.12 is required: TenSEAL 0.3.18 ships a cp312 wheel.
+Versions are pinned in `requirements.txt`.
 
 ## Repo layout
 
 ```
-bank_service/       FastAPI app: scaling, pseudonym, encrypt, decrypt, decision
-scoring_service/    FastAPI app: load weights, encrypted dot product
-common/             shared request/response schemas, serialization helpers
-training/           train.py, model.json (scorer), preprocessing.json (bank), metrics.json
-ui/                 Streamlit screens: bank, scorer, comparison
+bank_service/       FastAPI app (POST /apply): scaling, pseudonym, encrypt, decrypt, decision;
+                    cli.py scores one test-set row; config.toml; keys/ (git-ignored)
+scoring_service/    FastAPI app: load weights, register contexts, encrypted dot product, demo endpoints
+common/             CKKS setup (he.py), shared request and response schemas, FastAPI helpers
+training/           train.py; artifacts/: model.json (scorer), preprocessing.json (bank),
+                    metrics.json, test_split.csv (git-ignored)
+ui/                 Streamlit app (app.py): Home, Bank, Scorer and Comparison pages in views/;
+                    demo_applicants.py writes the git-ignored demo_applicants.json
 scripts/            setup_demo.py: training, then demo applicants
-evaluation/         measurement scripts and results
-notebooks/          experiments, first TenSEAL test
-tests/              unit and end-to-end tests
-docs/               project plan PDF, report drafts
+evaluation/         measurement script and results (to do)
+notebooks/          he_spike.py (first TenSEAL test), he_params.py (CKKS parameter measurements)
+tests/              unit, UI and end-to-end tests
+docs/               report notes and drafts
 ```
 
 Datasets, binary model artifacts (`*.pkl`, `*.joblib`), keys and certificates are
 git-ignored. Never commit keys.
 
 ## Commands
-
-Fill these in as the project is built.
 
 ```bash
 # Setup
