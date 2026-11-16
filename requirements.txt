@@ -4,11 +4,10 @@ pytest==9.2.0
 tenseal==0.3.18   # CKKS; cp312 wheel verified 2026-11-16
 numpy==2.5.5
 
-# --- To add and pin in week 1 ---
 scikit-learn==1.9.1
 pandas==3.1.1
 fastapi==0.163.1
 uvicorn==0.54.0
 httpx==0.28.1     # bank -> scorer HTTP client; FastAPI TestClient
 pydantic==2.14.3
-# streamlit==
+streamlit==1.67.0  # demo screens (ui/)
