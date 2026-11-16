@@ -101,6 +101,33 @@ def make_contexts(
     return ctx, public
 
 
+def serialize_private_context(bank_ctx: ts.Context) -> bytes:
+    """Bank side: secret and public key only, for the bank's own key file.
+
+    Galois keys are left out on purpose: the bank never rotates, and TenSEAL
+    does not store them for a secret-key context anyway (it regenerates the
+    full ~17 MB default set on load). The scorer's Galois keys live in the
+    public context bytes from make_contexts, which the bank stores separately.
+    """
+    if not bank_ctx.is_private():
+        raise ValueError("expected the bank's private context")
+    return bank_ctx.serialize(
+        save_public_key=True,
+        save_secret_key=True,
+        save_galois_keys=False,
+        save_relin_keys=False,
+    )
+
+
+def load_private_context(data: bytes) -> ts.Context:
+    """Bank side: load the context written by serialize_private_context."""
+    ctx = ts.context_from(data)
+    if not ctx.is_private():
+        raise ValueError("context has no secret key")
+    ctx.auto_rescale = True
+    return ctx
+
+
 def load_public_context(public_ctx: bytes) -> ts.Context:
     """Scorer side: load the bank's public context. Refuses a private one."""
     ctx = ts.context_from(public_ctx)

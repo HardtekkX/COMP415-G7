@@ -45,6 +45,7 @@ The sigmoid runs at the bank after decryption, so the encrypted part is a single
 - The scoring service never receives names, national IDs or plaintext features.
 - The bank service never reads the model weights. Training exports them to `training/artifacts/model.json` (scoring service only); the bank reads only `training/artifacts/preprocessing.json` (feature order and scaler).
 - The scoring service must not log anything except pseudonyms, context IDs (random, issued by the scorer), ciphertext sizes and timings.
+- The bank service must not log national IDs or plaintext feature values. It logs pseudonyms, decisions, sizes and timings only.
 
 ## Tech stack
 

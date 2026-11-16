@@ -26,11 +26,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import tenseal as ts
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, HTTPException
 
 from common import he
+from common.api import configure_logger, quiet_validation_errors
 from common.schemas import (
     ContextRequest,
     ContextResponse,
@@ -113,11 +112,7 @@ def create_app(model_path: Path | str | None = None, max_contexts: int | None = 
     app.state.model = model
     app.state.contexts = store
 
-    @app.exception_handler(RequestValidationError)
-    async def validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
-        # FastAPI's default handler echoes the offending input; return locations only.
-        fields = [".".join(str(p) for p in err["loc"]) for err in exc.errors()]
-        return JSONResponse(status_code=422, content={"detail": "invalid request", "fields": fields})
+    quiet_validation_errors(app)
 
     @app.get("/health", response_model=HealthResponse)
     def health() -> HealthResponse:
@@ -176,14 +171,5 @@ def create_app(model_path: Path | str | None = None, max_contexts: int | None = 
     return app
 
 
-def _configure_logging() -> None:
-    # uvicorn configures only its own loggers; give ours an INFO handler too.
-    log.setLevel(logging.INFO)
-    if not log.handlers:
-        handler = logging.StreamHandler()
-        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
-        log.addHandler(handler)
-
-
-_configure_logging()
+configure_logger("scoring_service")
 app = create_app()

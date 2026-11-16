@@ -1,0 +1,18 @@
+# Bank service configuration. Paths are relative to the repository root.
+# Environment overrides: BANK_SCORER_URL, BANK_KEYS_DIR, BANK_CONFIG (this file).
+
+scorer_url = "http://127.0.0.1:8001"
+
+# HE secret key, HMAC key and the cached scorer context_id. Git-ignored (keys/).
+keys_dir = "bank_service/keys"
+
+# Feature order and scaler. The bank never reads training/artifacts/model.json.
+preprocessing_path = "training/artifacts/preprocessing.json"
+
+# p = probability of default, from the decrypted logit.
+#   p <  approve_below          -> approve
+#   approve_below <= p < reject_from -> review
+#   p >= reject_from            -> reject
+[decision]
+approve_below = 0.25
+reject_from = 0.50
