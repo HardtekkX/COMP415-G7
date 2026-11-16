@@ -43,7 +43,7 @@ The sigmoid runs at the bank after decryption, so the encrypted part is a single
 - The HE secret key never leaves the bank service. The context sent to the scorer must be serialized without the secret key.
 - The HMAC key stays in the bank service.
 - The scoring service never receives names, national IDs or plaintext features.
-- The scoring service must not log anything except pseudonyms, ciphertext sizes and timings.
+- The scoring service must not log anything except pseudonyms, context IDs (random, issued by the scorer), ciphertext sizes and timings.
 
 ## Tech stack
 

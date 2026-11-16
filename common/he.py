@@ -114,11 +114,23 @@ def encrypt_vector(bank_ctx: ts.Context, x: Sequence[float]) -> bytes:
     return ts.ckks_vector(bank_ctx, list(map(float, x))).serialize()
 
 
+def load_ciphertext(scorer_ctx: ts.Context, ciphertext: bytes) -> ts.CKKSVector:
+    """Scorer side: deserialise an encrypted feature vector (raises on bad bytes)."""
+    return ts.ckks_vector_from(scorer_ctx, ciphertext)
+
+
 def encrypted_logit(
-    scorer_ctx: ts.Context, ciphertext: bytes, weights: Sequence[float], bias: float
+    scorer_ctx: ts.Context,
+    ciphertext: bytes | ts.CKKSVector,
+    weights: Sequence[float],
+    bias: float,
 ) -> bytes:
     """Scorer side: w . x + b on the ciphertext. Returns the summed logit only."""
-    enc_x = ts.ckks_vector_from(scorer_ctx, ciphertext)
+    enc_x = (
+        ciphertext
+        if isinstance(ciphertext, ts.CKKSVector)
+        else load_ciphertext(scorer_ctx, ciphertext)
+    )
     if enc_x.size() != len(weights):
         raise ValueError(f"ciphertext has {enc_x.size()} slots, model has {len(weights)} weights")
     return (enc_x.dot(list(map(float, weights))) + float(bias)).serialize()
