@@ -1,0 +1,14 @@
+# Pin every version once installed and tested (Week 1 checklist).
+
+pytest==9.2.0
+tenseal==0.3.18   # CKKS; cp312 wheel verified 2026-11-16
+numpy==2.5.5
+
+# --- To add and pin in week 1 ---
+# scikit-learn==
+# pandas==
+# fastapi==
+# uvicorn==
+# httpx==          # bank -> scorer HTTP client
+# pydantic==
+# streamlit==
