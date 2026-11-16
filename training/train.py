@@ -6,6 +6,8 @@ and exports two files, one per party (the bank must never see the weights):
   training/artifacts/model.json          weights, bias        -> scoring service
   training/artifacts/preprocessing.json  feature_order, scaler_mean,
                                          scaler_scale         -> bank service
+plus training/artifacts/metrics.json (test metrics, split, seed, features) for
+the report; neither service reads it.
 The bank computes x_scaled = (x - scaler_mean) / scaler_scale in feature_order;
 the scorer computes logit = weights . x_scaled + bias. The model predicts the
 probability of default (bad credit = 1).
@@ -59,6 +61,7 @@ DATA_PATH = HERE / "data" / "german.data"          # git-ignored
 ARTIFACTS = HERE / "artifacts"
 MODEL_PATH = ARTIFACTS / "model.json"                # scoring service only
 PREPROCESSING_PATH = ARTIFACTS / "preprocessing.json"  # bank service only
+METRICS_PATH = ARTIFACTS / "metrics.json"            # report only; no weights
 TEST_PATH = ARTIFACTS / "test_split.csv"            # git-ignored (*.csv)
 
 RAW_COLUMNS = [
@@ -187,6 +190,22 @@ def main() -> None:
     }
     MODEL_PATH.write_text(json.dumps(model_export, indent=2) + "\n")
     PREPROCESSING_PATH.write_text(json.dumps(preprocessing_export, indent=2) + "\n")
+    metrics_export = {
+        "test_accuracy": round(float(accuracy), 4),
+        "test_auc": round(float(auc), 4),
+        "baseline_accuracy": round(float(baseline), 4),  # always predict "good"
+        "decision_threshold": 0.5,
+        "positive_class": "default",
+        "n_train": len(X_train),
+        "n_test": len(X_test),
+        "test_size": TEST_SIZE,
+        "stratified": True,
+        "seed": SEED,
+        "features": FEATURES,
+        "dataset": "UCI Statlog German Credit (german.data)",
+        "dataset_sha256": DATA_SHA256,
+    }
+    METRICS_PATH.write_text(json.dumps(metrics_export, indent=2) + "\n")
 
     test = X_test.copy()
     test.insert(0, "row_id", X_test.index)
@@ -194,7 +213,7 @@ def main() -> None:
     test["plaintext_probability"] = np.round(proba, 6)
     test.to_csv(TEST_PATH, index=False)
     print("\nWrote")
-    for path in (MODEL_PATH, PREPROCESSING_PATH, TEST_PATH):
+    for path in (MODEL_PATH, PREPROCESSING_PATH, METRICS_PATH, TEST_PATH):
         print(f"  {path.relative_to(HERE.parent)}")
 
 

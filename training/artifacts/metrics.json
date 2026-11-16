@@ -1,0 +1,26 @@
+{
+  "test_accuracy": 0.76,
+  "test_auc": 0.7701,
+  "baseline_accuracy": 0.7,
+  "decision_threshold": 0.5,
+  "positive_class": "default",
+  "n_train": 700,
+  "n_test": 300,
+  "test_size": 0.3,
+  "stratified": true,
+  "seed": 415,
+  "features": [
+    "duration_months",
+    "credit_amount",
+    "installment_rate",
+    "existing_credits",
+    "checking_status",
+    "savings_band",
+    "employment_band",
+    "other_installment_plans",
+    "owns_home",
+    "has_guarantor"
+  ],
+  "dataset": "UCI Statlog German Credit (german.data)",
+  "dataset_sha256": "b21f3d81db8071257d5ff1deaeba1fd4303b62712e6fcc9715c7a86202cb5871"
+}
