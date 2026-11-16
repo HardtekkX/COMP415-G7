@@ -93,6 +93,7 @@ scoring_service/    FastAPI app: load weights, encrypted dot product
 common/             shared request/response schemas, serialization helpers
 training/           train.py, model.json (scorer), preprocessing.json (bank), metrics.json
 ui/                 Streamlit screens: bank, scorer, comparison
+scripts/            setup_demo.py: training, then demo applicants
 evaluation/         measurement scripts and results
 notebooks/          experiments, first TenSEAL test
 tests/              unit and end-to-end tests
@@ -133,6 +134,12 @@ python -m bank_service.cli --row-id 690
 python -m pytest
 python -m pytest tests/test_e2e.py -s     # end to end only, prints max error
 
-# Run UI           (TODO) streamlit run ui/app.py
+# Demo applicants (needs training; writes git-ignored ui/demo_applicants.json)
+python -m ui.demo_applicants
+python scripts/setup_demo.py              # training, then demo applicants
+
+# Run UI (thin HTTP client, never imports service code;
+# env UI_BANK_URL, UI_SCORER_URL default to 127.0.0.1:8000 / :8001)
+streamlit run ui/app.py
 # Evaluate         (TODO) python -m evaluation.run
 ```

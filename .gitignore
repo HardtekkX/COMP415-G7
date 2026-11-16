@@ -54,3 +54,6 @@ certs/
 .idea/
 .DS_Store
 Thumbs.db
+
+# --- Demo data (regenerate: python -m ui.demo_applicants) ---
+ui/demo_applicants.json

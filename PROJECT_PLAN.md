@@ -95,6 +95,7 @@ scoring_service/    FastAPI app: load weights, encrypted dot product
 common/             shared request and response schemas, serialization helpers
 training/           train.py, model.json (scorer), preprocessing.json (bank)
 ui/                 Streamlit screens: bank, scorer, comparison
+scripts/            setup_demo.py: training, then demo applicants
 evaluation/         measurement scripts and results
 notebooks/          experiments, first TenSEAL test
 tests/              unit and end-to-end tests

@@ -21,9 +21,18 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-python -m training.train       # once: downloads German Credit, writes training/artifacts/
-python -m pytest               # about 15 s; includes an end-to-end run of both services
+python scripts/setup_demo.py   # once: trains the model, then picks the demo applicants
+python -m pytest               # about 20 s; includes an end-to-end run of both services
 ```
+
+`scripts/setup_demo.py` runs two steps you can also run on their own:
+
+- `python -m training.train` downloads German Credit and writes
+  `training/artifacts/` (weights for the scorer, scaler for the bank, metrics,
+  and the git-ignored `test_split.csv`).
+- `python -m ui.demo_applicants` picks six test applicants, two each for
+  approve, review and reject, with made-up national IDs, and writes the
+  git-ignored `ui/demo_applicants.json`. Run it again after retraining.
 
 Start the two services, each in its own terminal (with `.venv` activated):
 
@@ -49,6 +58,13 @@ curl -s localhost:8000/apply -H 'content-type: application/json' -d '{
                "existing_credits": 1, "checking_status": 1, "savings_band": 0,
                "employment_band": 2, "other_installment_plans": 0, "owns_home": 1,
                "has_guarantor": 0}}'
+```
+
+To open the demo screens (Bank, Scorer, Comparison) in a browser, with both
+services running:
+
+```bash
+streamlit run ui/app.py     # UI_BANK_URL / UI_SCORER_URL override the service URLs
 ```
 
 Good to know:
