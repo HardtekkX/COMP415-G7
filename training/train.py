@@ -210,7 +210,7 @@ def main() -> None:
     test = X_test.copy()
     test.insert(0, "row_id", X_test.index)
     test["default"] = y_test
-    test["plaintext_probability"] = np.round(proba, 6)
+    test["plaintext_probability"] = proba  # full precision: CKKS error is ~1e-7
     test.to_csv(TEST_PATH, index=False)
     print("\nWrote")
     for path in (MODEL_PATH, PREPROCESSING_PATH, METRICS_PATH, TEST_PATH):

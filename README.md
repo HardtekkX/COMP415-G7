@@ -48,7 +48,7 @@ python -m bank_service.cli --row-id 690
 ```
 
 It prints the encrypted-path probability next to the plaintext one from
-training (difference around 1e-7) and the decision. Or call the bank's API
+training (difference at most about 3e-7) and the decision. Or call the bank's API
 (the national ID is fake; real T.C. numbers never start with 0):
 
 ```bash
@@ -86,7 +86,7 @@ As of 16 November 2026. Built and tested (89 tests):
 | CKKS setup | `common/he.py` | N=8192, chain [60, 40, 60], scale 2^40, minimal rotation keys |
 | Scoring service | `scoring_service/` | about 6 ms per encrypted score; public context 2.9 MB, sent once |
 | Bank service + CLI | `bank_service/` | ciphertext 235 KB per request; about 20 ms round trip on one laptop |
-| End to end | `tests/test_e2e.py` | 20 applicants, max error 7.7e-7 against plaintext, all decisions agree |
+| End to end | `tests/test_e2e.py` | 20 applicants, all decisions agree; max probability error 3.3e-7 over all 300 test rows |
 
 Security rules covered by tests: the scorer never holds a secret key, the bank
 never reads the weights, neither service logs national IDs or feature values.
