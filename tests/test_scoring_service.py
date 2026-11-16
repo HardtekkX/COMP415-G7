@@ -57,9 +57,8 @@ def context_id(client, bank):
 
 
 def scaled_row(seed: int = 0) -> np.ndarray:
-    rng = np.random.default_rng(seed)
-    raw = rng.normal(MODEL["scaler_mean"], MODEL["scaler_scale"])
-    return (raw - MODEL["scaler_mean"]) / np.array(MODEL["scaler_scale"])
+    """A standardised feature vector, as the bank would send (the scorer has no scaler)."""
+    return np.random.default_rng(seed).normal(size=N)
 
 
 def score(client, context_id, ciphertext: bytes, pseudonym=PSEUDONYM):
@@ -238,3 +237,7 @@ def test_stored_contexts_hold_no_secret_key(client, bank, context_id):
         assert not ctx.is_private()
         with pytest.raises(Exception):
             ctx.secret_key()
+
+
+def test_model_file_holds_only_weights_and_bias():
+    assert set(MODEL) == {"weights", "bias"}

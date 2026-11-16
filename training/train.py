@@ -2,8 +2,13 @@
 
 Downloads german.data (1000 applicants, 20 attributes), builds 10 numeric
 features, fits StandardScaler + LogisticRegression on a stratified 70/30 split
-and exports what both services need to training/artifacts/model.json. The
-model predicts the probability of default (bad credit = 1).
+and exports two files, one per party (the bank must never see the weights):
+  training/artifacts/model.json          weights, bias        -> scoring service
+  training/artifacts/preprocessing.json  feature_order, scaler_mean,
+                                         scaler_scale         -> bank service
+The bank computes x_scaled = (x - scaler_mean) / scaler_scale in feature_order;
+the scorer computes logit = weights . x_scaled + bias. The model predicts the
+probability of default (bad credit = 1).
 
 Features (UCI attribute in brackets):
   duration_months          [A2]  loan duration in months
@@ -52,7 +57,8 @@ DATA_SHA256 = "b21f3d81db8071257d5ff1deaeba1fd4303b62712e6fcc9715c7a86202cb5871"
 HERE = Path(__file__).resolve().parent
 DATA_PATH = HERE / "data" / "german.data"          # git-ignored
 ARTIFACTS = HERE / "artifacts"
-MODEL_PATH = ARTIFACTS / "model.json"
+MODEL_PATH = ARTIFACTS / "model.json"                # scoring service only
+PREPROCESSING_PATH = ARTIFACTS / "preprocessing.json"  # bank service only
 TEST_PATH = ARTIFACTS / "test_split.csv"            # git-ignored (*.csv)
 
 RAW_COLUMNS = [
@@ -170,34 +176,26 @@ def main() -> None:
     print(f"  {'bias':<25}{model.intercept_[0]:+.3f}")
 
     ARTIFACTS.mkdir(exist_ok=True)
-    export = {
-        "description": "Logistic regression on UCI Statlog German Credit; "
-                       "output = probability of default. Apply (x - scaler_mean) / "
-                       "scaler_scale in feature_order, logit = weights . x_scaled + bias.",
-        "feature_order": FEATURES,
+    model_export = {
         "weights": model.coef_[0].tolist(),
         "bias": float(model.intercept_[0]),
+    }
+    preprocessing_export = {
+        "feature_order": FEATURES,
         "scaler_mean": scaler.mean_.tolist(),
         "scaler_scale": scaler.scale_.tolist(),
-        "positive_class": "default",
-        "metrics": {"test_accuracy": round(accuracy, 4), "test_auc": round(auc, 4)},
-        "training": {
-            "dataset": "UCI Statlog German Credit (german.data)",
-            "dataset_sha256": DATA_SHA256,
-            "seed": SEED,
-            "test_size": TEST_SIZE,
-            "n_train": len(X_train),
-            "n_test": len(X_test),
-        },
     }
-    MODEL_PATH.write_text(json.dumps(export, indent=2) + "\n")
+    MODEL_PATH.write_text(json.dumps(model_export, indent=2) + "\n")
+    PREPROCESSING_PATH.write_text(json.dumps(preprocessing_export, indent=2) + "\n")
 
     test = X_test.copy()
     test.insert(0, "row_id", X_test.index)
     test["default"] = y_test
     test["plaintext_probability"] = np.round(proba, 6)
     test.to_csv(TEST_PATH, index=False)
-    print(f"\nWrote {MODEL_PATH.relative_to(HERE.parent)} and {TEST_PATH.relative_to(HERE.parent)}")
+    print("\nWrote")
+    for path in (MODEL_PATH, PREPROCESSING_PATH, TEST_PATH):
+        print(f"  {path.relative_to(HERE.parent)}")
 
 
 if __name__ == "__main__":

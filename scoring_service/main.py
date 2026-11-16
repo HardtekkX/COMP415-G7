@@ -9,7 +9,7 @@ Logging is limited to pseudonyms, context IDs, byte sizes, timings and status
 codes. Request bodies are never logged, and validation errors do not echo input.
 
 Run:  uvicorn scoring_service.main:app --port 8001
-Env:  SCORER_MODEL_PATH    model JSON (default training/artifacts/model.json)
+Env:  SCORER_MODEL_PATH    weights and bias (default training/artifacts/model.json)
       SCORER_MAX_CONTEXTS  contexts kept in memory, oldest evicted (default 100)
 """
 
@@ -52,11 +52,16 @@ class Model:
 
     @classmethod
     def load(cls, path: Path) -> Model:
+        """model.json holds only weights and bias; the feature count is len(weights)."""
         data = json.loads(Path(path).read_text())
         weights = [float(w) for w in data["weights"]]
-        if len(weights) != len(data["feature_order"]):
-            raise ValueError(f"{path}: weights and feature_order differ in length")
+        if not weights:
+            raise ValueError(f"{path}: no weights")
         return cls(weights=weights, bias=float(data["bias"]))
+
+    @property
+    def n_features(self) -> int:
+        return len(self.weights)
 
 
 class ContextStore:
@@ -155,8 +160,8 @@ def create_app(model_path: Path | str | None = None, max_contexts: int | None = 
             enc_x = he.load_ciphertext(ctx, req.ciphertext)
         except Exception:
             raise reject(400, "ciphertext cannot be read with this context") from None
-        if enc_x.size() != len(model.weights):
-            raise reject(422, f"vector length must be {len(model.weights)}")
+        if enc_x.size() != model.n_features:
+            raise reject(422, f"vector length must be {model.n_features}")
         try:
             out = he.encrypted_logit(ctx, enc_x, model.weights, model.bias)
         except Exception:

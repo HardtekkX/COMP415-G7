@@ -18,6 +18,8 @@ python -m training.train   # downloads the dataset, writes training/artifacts/
 python -m pytest
 ```
 
-`training/artifacts/model.json` (weights, bias, scaler) is committed.
+`training/artifacts/model.json` (weights and bias, read only by the scoring
+service) and `training/artifacts/preprocessing.json` (feature order and scaler,
+read only by the bank service) are committed.
 `training/artifacts/test_split.csv` and the downloaded dataset are git-ignored;
 rerun `python -m training.train` to regenerate them.

@@ -23,7 +23,7 @@ Two separate services and one offline script.
 |---|---|---|
 | Bank service | Customer data, HE secret key, HMAC key | Scales features, makes the pseudonym, encrypts, sends, decrypts, applies sigmoid, shows the decision |
 | Scoring service (plays KKB) | Model weights in plaintext | Receives ciphertext, computes the encrypted dot product plus bias, returns ciphertext |
-| Training script | Public credit dataset | Trains logistic regression, exports weights and scaler |
+| Training script | Public credit dataset | Trains logistic regression, exports weights (for the scorer) and scaler (for the bank) separately |
 
 ### One score request
 
@@ -43,6 +43,7 @@ The sigmoid runs at the bank after decryption, so the encrypted part is a single
 - The HE secret key never leaves the bank service. The context sent to the scorer must be serialized without the secret key.
 - The HMAC key stays in the bank service.
 - The scoring service never receives names, national IDs or plaintext features.
+- The bank service never reads the model weights. Training exports them to `training/artifacts/model.json` (scoring service only); the bank reads only `training/artifacts/preprocessing.json` (feature order and scaler).
 - The scoring service must not log anything except pseudonyms, context IDs (random, issued by the scorer), ciphertext sizes and timings.
 
 ## Tech stack
@@ -90,7 +91,7 @@ A starting point. Change it in week 1 if the team prefers something else.
 bank_service/       FastAPI app: scaling, pseudonym, encrypt, decrypt, decision
 scoring_service/    FastAPI app: load weights, encrypted dot product
 common/             shared request and response schemas, serialization helpers
-training/           train.py, exported weights and scaler
+training/           train.py, model.json (scorer), preprocessing.json (bank)
 ui/                 Streamlit screens: bank, scorer, comparison
 evaluation/         measurement scripts and results
 notebooks/          experiments, first TenSEAL test
