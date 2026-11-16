@@ -60,12 +60,24 @@ curl -s localhost:8000/apply -H 'content-type: application/json' -d '{
                "has_guarantor": 0}}'
 ```
 
-To open the demo screens (Bank, Scorer, Comparison) in a browser, with both
-services running:
+To open the demo screens in a browser, with both services running and the demo
+applicants created (`python scripts/setup_demo.py`):
 
 ```bash
 streamlit run ui/app.py     # UI_BANK_URL / UI_SCORER_URL override the service URLs
 ```
+
+- **Bank**: pick or edit an applicant, get the decision, and see exactly what
+  left the bank (pseudonym, ciphertext size) next to what stayed.
+- **Scorer**: everything the scoring service sees and nothing else: recent
+  requests (time, pseudonym, context ID, ciphertext size, compute time), the
+  first 64 base64 characters of a selected ciphertext and result, and the
+  registered public contexts. Needs the scorer's demo endpoints, which are on
+  unless it was started with `SCORER_DEMO_ENDPOINTS=false`.
+- **Comparison**: the six demo applicants scored through the encrypted path
+  next to their plaintext probability from training: the difference, whether
+  the decisions match, ciphertext size against plain JSON, and a timing
+  breakdown. **Run all six** fills a table.
 
 Good to know:
 - The bank's first run creates `bank_service/keys/` (HE secret key, HMAC key).
@@ -78,7 +90,7 @@ Good to know:
 
 ## Status
 
-As of 16 November 2026. Built and tested (89 tests):
+As of 16 November 2026. Built and tested (167 tests):
 
 | Part | Where | Key numbers |
 |---|---|---|
@@ -87,12 +99,12 @@ As of 16 November 2026. Built and tested (89 tests):
 | Scoring service | `scoring_service/` | about 6 ms per encrypted score; public context 2.9 MB, sent once |
 | Bank service + CLI | `bank_service/` | ciphertext 235 KB per request; about 20 ms round trip on one laptop |
 | End to end | `tests/test_e2e.py` | 20 applicants, all decisions agree; max probability error 3.3e-7 over all 300 test rows |
+| Demo screens | `ui/` | Bank, Scorer, Comparison (Streamlit, HTTP only); six demo applicants agree on every decision |
 
 Security rules covered by tests: the scorer never holds a secret key, the bank
 never reads the weights, neither service logs national IDs or feature values.
 
 Still open, per [PROJECT_PLAN.md](PROJECT_PLAN.md):
-- Three Streamlit screens: bank, scorer, comparison (`ui/`).
 - The five measurements over the full test set (`evaluation/`).
 - Should have: HTTPS between services, Docker Compose, pre-loaded applicants.
 - Report draft, demo rehearsals, backup video.

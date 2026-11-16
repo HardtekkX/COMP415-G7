@@ -158,3 +158,56 @@ def apply(national_id: str, features: dict[str, int]) -> dict:
         names = ", ".join(_field_label(f) for f in fields) or "unknown fields"
         raise ApplyError(f"**The bank rejected the application as invalid:** {names}.")
     raise ApplyError(f"**The bank service returned HTTP {resp.status_code}.**")
+
+
+# --- Scorer demo endpoints: GET /activity, GET /contexts/summary ----------------
+
+SCORER_TIMEOUT_S = 10.0
+DEMO_ENDPOINTS_ENV = "SCORER_DEMO_ENDPOINTS"
+
+
+class ScorerDemoError(Exception):
+    """A scorer demo endpoint failed. The message is safe to show as Markdown.
+    `off` is True when the scorer answered 404 (demo endpoints turned off)."""
+
+    def __init__(self, message: str, off: bool = False):
+        super().__init__(message)
+        self.off = off
+
+
+def _scorer_get(path: str, field: str) -> dict:
+    try:
+        with httpx.Client(transport=_TRANSPORT, timeout=SCORER_TIMEOUT_S) as http:
+            resp = http.get(f"{SCORER.url}{path}")
+    except httpx.HTTPError:
+        raise ScorerDemoError(
+            f"**Scoring service is not reachable at {SCORER.url}.**\n\n"
+            f"Start it from the repository root:\n\n```\n{SCORER.start_command}\n```"
+        ) from None
+    if resp.status_code == 404:
+        raise ScorerDemoError(
+            f"**The scorer's demo endpoints are turned off** (`GET {path}` answered 404).\n\n"
+            f"The scoring service was started with `{DEMO_ENDPOINTS_ENV}=false`. Restart it "
+            f"without that setting (they are on by default) to see this screen:\n\n"
+            f"```\n{SCORER.start_command}\n```",
+            off=True,
+        )
+    if resp.status_code != 200:
+        raise ScorerDemoError(f"**The scoring service returned HTTP {resp.status_code}** for `{path}`.")
+    try:
+        data = resp.json()
+    except ValueError:
+        data = None
+    if not isinstance(data, dict) or field not in data:
+        raise ScorerDemoError("**The scoring service sent a response the UI does not understand.**")
+    return data
+
+
+def scorer_activity() -> list[dict]:
+    """GET /activity: the scorer's last successful scores, newest first."""
+    return _scorer_get("/activity", "records")["records"]
+
+
+def scorer_contexts_summary() -> dict:
+    """GET /contexts/summary: {count, max_contexts, contexts: [...]}."""
+    return _scorer_get("/contexts/summary", "contexts")

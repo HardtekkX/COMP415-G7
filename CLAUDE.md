@@ -138,8 +138,10 @@ python -m pytest tests/test_e2e.py -s     # end to end only, prints max error
 python -m ui.demo_applicants
 python scripts/setup_demo.py              # training, then demo applicants
 
-# Run UI (thin HTTP client, never imports service code;
-# env UI_BANK_URL, UI_SCORER_URL default to 127.0.0.1:8000 / :8001)
+# Run UI (both services running, demo applicants created; thin HTTP client,
+# never imports service code or reads model.json; env UI_BANK_URL,
+# UI_SCORER_URL default to 127.0.0.1:8000 / :8001). Pages: Bank, Scorer
+# (needs SCORER_DEMO_ENDPOINTS on), Comparison (six demo applicants only).
 streamlit run ui/app.py
 # Evaluate         (TODO) python -m evaluation.run
 ```

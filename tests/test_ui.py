@@ -37,6 +37,12 @@ def test_ui_never_imports_service_code(path):
             )
 
 
+@pytest.mark.parametrize("path", _ui_sources(), ids=lambda p: str(p.relative_to(ROOT)))
+def test_ui_never_reads_the_model_weights(path):
+    # The Comparison page takes its plaintext probability from demo_applicants.json.
+    assert "model.json" not in path.read_text(), path.name
+
+
 # --- Pages show a clear error when a service is down --------------------------
 
 @pytest.fixture
