@@ -5,6 +5,7 @@ import json
 import socket
 from pathlib import Path
 
+import httpx
 import pytest
 from streamlit.testing.v1 import AppTest
 
@@ -111,11 +112,27 @@ def test_page_says_how_to_create_missing_demo_applicants(monkeypatch, tmp_path, 
     assert expected in msg
 
 
-def test_scorer_page_needs_no_demo_applicants(monkeypatch, tmp_path):
+def test_scorer_page_needs_no_demo_applicants(monkeypatch, tmp_path, services_down):
+    # The Scorer page reads only the scorer's demo endpoints, never the demo
+    # applicants. Mock the HTTP layer so the test needs no running service;
+    # services_down makes any request that bypasses the mock fail loudly.
+    paths = []
+
+    def fake_scorer(request: httpx.Request) -> httpx.Response:
+        paths.append(request.url.path)
+        if request.url.path == "/activity":
+            return httpx.Response(200, json={"records": []})
+        if request.url.path == "/contexts/summary":
+            return httpx.Response(200, json={"count": 0, "max_contexts": 100, "contexts": []})
+        raise AssertionError(f"unexpected request {request.url}")
+
     monkeypatch.setattr(ui.client, "is_up", lambda s: True)
+    monkeypatch.setattr(ui.client, "_TRANSPORT", httpx.MockTransport(fake_scorer))
     monkeypatch.setattr(ui.client, "DEMO_APPLICANTS_PATH", tmp_path / "missing.json")
     at = run_page("views/scorer.py")
-    assert not at.error
+    assert not at.exception, at.exception
+    assert not at.error, [e.value for e in at.error]
+    assert set(paths) == {"/activity", "/contexts/summary"}
 
 
 # --- demo_applicants.py --------------------------------------------------------
