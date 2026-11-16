@@ -1,0 +1,56 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+
+# --- Notebooks ---
+.ipynb_checkpoints/
+
+# --- Datasets (download locally, never commit) ---
+data/
+datasets/
+*.csv
+*.xlsx
+*.parquet
+*.zip
+
+# --- Model artifacts (binary; regenerate with training/train.py) ---
+*.pkl
+*.pickle
+*.joblib
+*.npy
+*.npz
+
+# --- HE contexts / ciphertexts ---
+*.seal
+*.ctx
+*.ct
+
+# --- Keys, certificates and secrets ---
+.env
+.env.*
+*.pem
+*.key
+*.crt
+*.p12
+secrets/
+keys/
+certs/
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

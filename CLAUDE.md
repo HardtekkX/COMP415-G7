@@ -1,0 +1,94 @@
+# CLAUDE.md
+
+`PROJECT_PLAN.md` is the source of truth for this project. Read it before making
+design decisions; if this file and the plan disagree, the plan wins.
+
+## Goal
+
+A bank obtains a credit score for a loan applicant from an external scoring
+service (playing KKB / Findeks) without the scorer seeing the applicant's data.
+The bank encrypts the features with CKKS homomorphic encryption, the scorer
+computes a logistic-regression logit on the ciphertext, and only the bank can
+decrypt it. Threat model: honest-but-curious scorer.
+
+Due around 14 December 2026: ~2000-word report and ~30-minute live demo.
+
+## Architecture
+
+Two separate services plus one offline script.
+
+- **Bank service** (`bank_service/`, FastAPI) — holds customer data, the HE secret
+  key and the HMAC key. Scales features, builds the pseudonym
+  `HMAC-SHA256(bank_key, national_id)`, encrypts, sends to the scorer, decrypts,
+  applies the sigmoid and shows the decision (approve / review / reject).
+- **Scoring service** (`scoring_service/`, FastAPI) — holds the model weights in
+  plaintext. Receives the pseudonym, the public context and the ciphertext,
+  computes `w · x + b` homomorphically, returns the encrypted logit.
+- **Training script** (`training/`) — trains `LogisticRegression` on the public
+  dataset and exports weights and scaler for both services.
+
+The sigmoid runs at the bank after decryption, so the encrypted part is a single
+dot product.
+
+API (draft, see plan): `POST /score` on the scorer with
+`{pseudonym, context, ciphertext}` → `{pseudonym, encrypted_logit}` (binary as
+base64). `GET /health` on both services → `{"status": "ok"}`.
+
+## Security rules for the code
+
+- The HE secret key never leaves the bank service. The context sent to the scorer must be serialized without the secret key.
+- The HMAC key stays in the bank service.
+- The scoring service never receives names, national IDs or plaintext features.
+- The scoring service must not log anything except pseudonyms, ciphertext sizes and timings.
+
+## Tech stack
+
+| Need | Tool |
+|---|---|
+| Homomorphic encryption | TenSEAL (CKKS). Fallback: OpenFHE |
+| Model | scikit-learn `LogisticRegression` |
+| Dataset | German Credit (UCI) or Give Me Some Credit (Kaggle), TBD week 1 |
+| Services | FastAPI, one app per party |
+| Pseudonym | Python `hmac` + `hashlib` |
+| Front end | Streamlit |
+| Should have | HTTPS (self-signed cert), Docker Compose |
+
+Python only. Local Python is 3.12; confirm TenSEAL supports it before relying on
+it (switch to the fallback if it doesn't install by 18 November).
+
+## Repo layout
+
+```
+bank_service/       FastAPI app: scaling, pseudonym, encrypt, decrypt, decision
+scoring_service/    FastAPI app: load weights, encrypted dot product
+common/             shared request/response schemas, serialization helpers
+training/           train.py, exported weights and scaler
+ui/                 Streamlit screens: bank, scorer, comparison
+evaluation/         measurement scripts and results
+notebooks/          experiments, first TenSEAL test
+tests/              unit and end-to-end tests
+docs/               project plan PDF, report drafts
+```
+
+Datasets, binary model artifacts (`*.pkl`, `*.joblib`), keys and certificates are
+git-ignored. Never commit keys.
+
+## Commands
+
+Fill these in as the project is built.
+
+```bash
+# Setup
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Test
+python -m pytest
+
+# Train            (TODO) python -m training.train
+# Run scorer       (TODO) uvicorn scoring_service.app:app --port 8001
+# Run bank         (TODO) uvicorn bank_service.app:app --port 8000
+# Run UI           (TODO) streamlit run ui/app.py
+# Evaluate         (TODO) python -m evaluation.run
+```
