@@ -241,3 +241,102 @@ def test_stored_contexts_hold_no_secret_key(client, bank, context_id):
 
 def test_model_file_holds_only_weights_and_bias():
     assert set(MODEL) == {"weights", "bias"}
+
+
+# --- Demo endpoints: GET /activity, GET /contexts/summary ---------------------
+
+ACTIVITY_FIELDS = {
+    "timestamp": r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}\+00:00",
+    "pseudonym": r"[0-9a-f]{64}",
+    "context_id": r"[0-9a-f]{32}",
+    "ciphertext_bytes": r"\d+",
+    "ciphertext_prefix": r"[A-Za-z0-9+/]{64}",
+    "result_prefix": r"[A-Za-z0-9+/]{64}",
+    "compute_ms": r"[\d.]+(e-?\d+)?",
+}
+
+
+def other_pseudonym(i: int) -> str:
+    return hmac.new(b"test-bank-key", f"{i:011d}".encode(), hashlib.sha256).hexdigest()
+
+
+def test_activity_starts_empty(client):
+    resp = client.get("/activity")
+    assert resp.status_code == 200
+    assert resp.json() == {"records": []}
+
+
+def test_activity_records_only_allowed_fields(client, bank, context_id):
+    x = scaled_row()
+    ct = he.encrypt_vector(bank[0], x)
+    resp = score(client, context_id, ct)
+    encrypted_logit = resp.json()["encrypted_logit"]
+
+    records = client.get("/activity").json()["records"]
+    assert len(records) == 1
+    rec = records[0]
+    assert set(rec) == set(ACTIVITY_FIELDS)
+    for key, pattern in ACTIVITY_FIELDS.items():
+        assert re.fullmatch(pattern, str(rec[key])), (key, rec[key])
+    assert rec["pseudonym"] == PSEUDONYM
+    assert rec["context_id"] == context_id
+    assert rec["ciphertext_bytes"] == len(ct)
+    assert rec["ciphertext_prefix"] == b64(ct)[:64]
+    assert rec["result_prefix"] == encrypted_logit[:64]
+
+
+def test_activity_never_holds_plaintext_or_decrypted_values(client, bank, context_id):
+    bank_ctx = bank[0]
+    x = scaled_row(7)
+    resp = score(client, context_id, he.encrypt_vector(bank_ctx, x))
+    logit = he.decrypt_logit(bank_ctx, base64.b64decode(resp.json()["encrypted_logit"]))
+    probability = 1 / (1 + np.exp(-logit))
+
+    text = client.get("/activity").text
+    for value in [*x, logit, probability]:
+        for fmt in ("{:.3f}", "{:.4f}", "{!r}"):
+            assert fmt.format(float(value)) not in text
+    assert "12345678901" not in text   # national ID behind PSEUDONYM
+
+
+def test_activity_keeps_last_50_newest_first(client, bank, context_id):
+    ct = he.encrypt_vector(bank[0], scaled_row())
+    for i in range(55):
+        assert score(client, context_id, ct, pseudonym=other_pseudonym(i)).status_code == 200
+    records = client.get("/activity").json()["records"]
+    assert len(records) == 50
+    assert [r["pseudonym"] for r in records] == [other_pseudonym(i) for i in range(54, 4, -1)]
+
+
+def test_rejected_scores_are_not_recorded(client, bank, context_id):
+    score(client, UNKNOWN_CONTEXT_ID, he.encrypt_vector(bank[0], scaled_row()))   # 404
+    score(client, context_id, he.encrypt_vector(bank[0], np.ones(N + 1)))       # 422
+    score(client, context_id, b"not a ciphertext")                              # 400
+    assert client.get("/activity").json() == {"records": []}
+
+
+def test_contexts_summary(bank):
+    client = TestClient(create_app(max_contexts=2))
+    assert client.get("/contexts/summary").json() == {"count": 0, "max_contexts": 2, "contexts": []}
+
+    ids = [
+        client.post("/contexts", json={"context": b64(bank[1])}).json()["context_id"]
+        for _ in range(3)
+    ]
+    summary = client.get("/contexts/summary").json()
+    assert summary["count"] == 2
+    assert summary["max_contexts"] == 2
+    assert [c["context_id"] for c in summary["contexts"]] == ids[1:]   # oldest evicted
+    for c in summary["contexts"]:
+        assert set(c) == {"context_id", "size_bytes", "registered_at"}
+        assert c["size_bytes"] == len(bank[1])
+
+
+def test_demo_endpoints_off_return_404(bank, monkeypatch):
+    monkeypatch.setenv("SCORER_DEMO_ENDPOINTS", "false")
+    client = TestClient(create_app())
+    context_id = client.post("/contexts", json={"context": b64(bank[1])}).json()["context_id"]
+    assert score(client, context_id, he.encrypt_vector(bank[0], scaled_row())).status_code == 200
+    assert client.get("/activity").status_code == 404
+    assert client.get("/contexts/summary").status_code == 404
+    assert client.get("/health").status_code == 200

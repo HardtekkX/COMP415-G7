@@ -46,6 +46,7 @@ The sigmoid runs at the bank after decryption, so the encrypted part is a single
 - The bank service never reads the model weights. Training exports them to `training/artifacts/model.json` (scoring service only); the bank reads only `training/artifacts/preprocessing.json` (feature order and scaler).
 - The scoring service must not log anything except pseudonyms, context IDs (random, issued by the scorer), ciphertext sizes and timings.
 - The bank service must not log national IDs or plaintext feature values. It logs pseudonyms, decisions, sizes and timings only.
+- `GET /activity` and `GET /contexts/summary` on the scorer (demo screen only) expose only what the scorer may log (pseudonyms, context IDs, sizes, timings, timestamps) plus the first 64 base64 characters of each ciphertext received and each encrypted result returned. Never plaintext features, national IDs or decrypted values. They have no authentication; `SCORER_DEMO_ENDPOINTS=false` turns them off (404), and a real deployment would turn them off or put them behind authentication.
 
 ## Tech stack
 
@@ -148,6 +149,11 @@ Returns 404 if `context_id` is unknown (for example after a scorer restart); the
 The scorer must return the summed logit, not the element-wise products `w_i * x_i`: the bank chooses `x`, so it could divide each product by `x_i` and recover every model weight.
 
 `GET /health` on both services returns `{"status": "ok"}`.
+
+Demo-only endpoints on the scoring service (for the scorer screen; switched off with `SCORER_DEMO_ENDPOINTS=false`, which makes both return 404):
+
+- `GET /activity` returns `{"records": [...]}`, the last 50 successful scores, newest first. Each record: `timestamp`, `pseudonym`, `context_id`, `ciphertext_bytes`, `ciphertext_prefix` and `result_prefix` (first 64 base64 characters of the ciphertext received and the encrypted logit returned), `compute_ms`.
+- `GET /contexts/summary` returns `{"count", "max_contexts", "contexts": [{"context_id", "size_bytes", "registered_at"}]}`.
 
 ## Scope
 

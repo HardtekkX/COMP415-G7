@@ -74,3 +74,38 @@ class ScoreResponse(_Model):
 
 class HealthResponse(_Model):
     status: str = "ok"
+
+
+# --- Scorer demo endpoints (GET /activity, GET /contexts/summary) -------------
+# Only what the scorer may log (pseudonyms, context IDs, sizes, timings,
+# timestamps) plus short base64 prefixes of the ciphertexts it handled. Never
+# plaintext features, national IDs or decrypted values. extra="forbid" keeps a
+# new field from slipping in without a schema change.
+
+ACTIVITY_PREFIX_CHARS = 64
+
+
+class ActivityRecord(_Model):
+    timestamp: str
+    pseudonym: Pseudonym
+    context_id: ContextId
+    ciphertext_bytes: int
+    ciphertext_prefix: Annotated[str, Field(max_length=ACTIVITY_PREFIX_CHARS)]
+    result_prefix: Annotated[str, Field(max_length=ACTIVITY_PREFIX_CHARS)]
+    compute_ms: float
+
+
+class ActivityResponse(_Model):
+    records: list[ActivityRecord]
+
+
+class ContextInfo(_Model):
+    context_id: ContextId
+    size_bytes: int
+    registered_at: str
+
+
+class ContextSummary(_Model):
+    count: int
+    max_contexts: int
+    contexts: list[ContextInfo]
