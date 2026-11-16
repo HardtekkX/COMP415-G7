@@ -30,9 +30,15 @@ Two separate services plus one offline script.
 The sigmoid runs at the bank after decryption, so the encrypted part is a single
 dot product.
 
-API (draft, see plan): `POST /score` on the scorer with
-`{pseudonym, context, ciphertext}` → `{pseudonym, encrypted_logit}` (binary as
-base64). `GET /health` on both services → `{"status": "ok"}`.
+API (see plan; binary values as base64):
+- `POST /contexts` on the scorer with `{context}` (public context, no secret
+  key) → `{context_id}`. Registered once; the scorer keeps it in memory.
+- `POST /score` on the scorer with `{pseudonym, context_id, ciphertext}` →
+  `{pseudonym, encrypted_logit}`. 404 for an unknown `context_id`.
+- `GET /health` on both services → `{"status": "ok"}`.
+
+The scorer returns the summed logit, never element-wise `w_i * x_i` (the bank
+could divide by `x_i` and recover the weights).
 
 ## Security rules for the code
 

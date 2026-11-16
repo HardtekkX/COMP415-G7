@@ -31,7 +31,7 @@ Two separate services and one offline script.
 2. Bank service scales the features with the scaler from training.
 3. Bank service replaces the national ID with `HMAC-SHA256(bank_key, national_id)`.
 4. Bank service encrypts the feature vector with CKKS.
-5. Bank service sends the pseudonym, the ciphertext and the public context to the scoring service.
+5. Bank service sends the pseudonym, the ciphertext and the `context_id` of its registered public context to the scoring service. The public context itself (about 35 MB, mostly rotation keys) is registered once with `POST /contexts`, not sent with every request.
 6. Scoring service computes `w · x + b` on the ciphertext. The result is an encrypted logit.
 7. Scoring service returns the encrypted logit.
 8. Bank service decrypts, applies the sigmoid, and shows the probability and a decision: approve, review or reject.
@@ -79,6 +79,24 @@ docs/               full project plan, report drafts
 
 A draft to freeze in week 1. Binary values are base64 strings.
 
+`POST /contexts` on the scoring service registers the bank's public context once. The scorer keeps it in memory.
+
+Request:
+
+```json
+{
+  "context": "base64, public CKKS context without the secret key"
+}
+```
+
+Response:
+
+```json
+{
+  "context_id": "opaque string chosen by the scorer"
+}
+```
+
 `POST /score` on the scoring service
 
 Request:
@@ -86,7 +104,7 @@ Request:
 ```json
 {
   "pseudonym": "hex string, HMAC-SHA256 of the national ID",
-  "context": "base64, public CKKS context without the secret key",
+  "context_id": "value returned by POST /contexts",
   "ciphertext": "base64, encrypted feature vector"
 }
 ```
@@ -99,6 +117,10 @@ Response:
   "encrypted_logit": "base64, encrypted result"
 }
 ```
+
+Returns 404 if `context_id` is unknown (for example after a scorer restart); the bank then registers its context again.
+
+The scorer must return the summed logit, not the element-wise products `w_i * x_i`: the bank chooses `x`, so it could divide each product by `x_i` and recover every model weight.
 
 `GET /health` on both services returns `{"status": "ok"}`.
 
