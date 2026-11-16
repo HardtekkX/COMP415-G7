@@ -2,7 +2,8 @@
 
 Built only from the scorer's GET /activity and GET /contexts/summary, which
 carry what the scorer may log (pseudonyms, context IDs, sizes, timings,
-timestamps) plus 64-character base64 prefixes. The page reads no local files
+timestamps) plus, per ciphertext, a 64-character base64 slice from its middle
+and a SHA-256 fingerprint. The page reads no local files
 and never calls the bank, so it cannot show plaintext even by mistake.
 """
 
@@ -91,6 +92,7 @@ table = [
         "Pseudonym": r["pseudonym"][:16] + "…",   # full one in the box below
         "Context ID": r["context_id"],
         "Ciphertext": kb(r["ciphertext_bytes"]),
+        "Ciphertext SHA-256": r["ciphertext_sha256"],
         "Compute (ms)": round(r["compute_ms"], 2),
     }
     for r in records
@@ -118,13 +120,18 @@ with st.container(border=True):
         f"**{which}:** {local_time(record['timestamp'])}, context `{record['context_id']}`  \n"
         f"Pseudonym `{record['pseudonym']}`"
     )
-    st.markdown(f"Ciphertext received ({kb(record['ciphertext_bytes'])}), first 64 base64 characters:")
-    st.code(record["ciphertext_prefix"], language=None, wrap_lines=True)
-    st.markdown("Encrypted result returned, first 64 base64 characters:")
-    st.code(record["result_prefix"], language=None, wrap_lines=True)
+    st.markdown(
+        f"**Ciphertext received** ({kb(record['ciphertext_bytes'])}), "
+        f"SHA-256 `{record['ciphertext_sha256']}…`, 64 base64 characters from the middle:"
+    )
+    st.code(record["ciphertext_slice"], language=None, wrap_lines=True)
+    st.markdown(
+        f"**Encrypted result returned**, SHA-256 `{record['result_sha256']}…`, "
+        f"64 base64 characters from the middle:"
+    )
+    st.code(record["result_slice"], language=None, wrap_lines=True)
     st.caption(
-        "These first bytes are mostly TenSEAL's serialization header (format, parameters, "
-        "compression frame), so they look alike from one request to the next; the encrypted "
-        "coefficients follow. The scorer cannot read either. The decrypted logit exists only "
-        "at the bank."
+        "Encrypted payload, not the serialization header. CKKS encryption is randomised, so "
+        "the same applicant scored twice gives different bytes and fingerprints. The scorer "
+        "cannot read either; the decrypted logit exists only at the bank."
     )

@@ -24,8 +24,10 @@ def record(i: int) -> dict:
         "pseudonym": f"{i:02x}" * 32,
         "context_id": CTX,
         "ciphertext_bytes": 235_000 + i,
-        "ciphertext_prefix": f"CT{i}" + "A" * 50,
-        "result_prefix": f"RS{i}" + "B" * 50,
+        "ciphertext_slice": f"CT{i}" + "A" * 50,
+        "ciphertext_sha256": f"{i:x}" * 16,
+        "result_slice": f"RS{i}" + "B" * 50,
+        "result_sha256": f"{i + 8:x}" * 16,
         "compute_ms": 4.0 + i / 10,
     }
 
@@ -76,7 +78,9 @@ def test_table_lists_requests_newest_first(fake_scorer):
     at = open_page()
     [table] = at.dataframe
     df = table.value
-    assert list(df.columns) == ["Time", "Pseudonym", "Context ID", "Ciphertext", "Compute (ms)"]
+    assert list(df.columns) == ["Time", "Pseudonym", "Context ID", "Ciphertext", "Ciphertext SHA-256",
+                                "Compute (ms)"]
+    assert list(df["Ciphertext SHA-256"]) == [r["ciphertext_sha256"] for r in fake_scorer.records]
     assert list(df["Pseudonym"]) == [r["pseudonym"][:16] + "…" for r in fake_scorer.records]
     assert list(df["Context ID"]) == [CTX] * 3
     assert list(df["Ciphertext"]) == ["235.0 KB"] * 3
@@ -84,10 +88,13 @@ def test_table_lists_requests_newest_first(fake_scorer):
     assert all(t.endswith(".123") for t in df["Time"])
 
 
-def test_newest_request_prefixes_shown_by_default(fake_scorer):
+def test_newest_request_slices_shown_by_default(fake_scorer):
     at = open_page()
     codes = [c.value for c in at.code]
-    assert codes == [record(3)["ciphertext_prefix"], record(3)["result_prefix"]]
+    assert codes == [record(3)["ciphertext_slice"], record(3)["result_slice"]]
+    text = page_text(at)
+    assert f"SHA-256 `{record(3)['ciphertext_sha256']}…`" in text
+    assert f"SHA-256 `{record(3)['result_sha256']}…`" in text
     assert "Newest request" in page_text(at)
     assert f"Pseudonym `{record(3)['pseudonym']}`" in page_text(at)
 
@@ -111,7 +118,7 @@ def test_refresh_fetches_again(fake_scorer):
     at.button(key="scorer_refresh").click().run()
     assert fake_scorer.paths.count("/activity") == before + 1
     assert at.dataframe[0].value["Pseudonym"].iloc[0] == record(4)["pseudonym"][:16] + "…"
-    assert at.code[0].value == record(4)["ciphertext_prefix"]
+    assert at.code[0].value == record(4)["ciphertext_slice"]
 
 
 def test_empty_log_points_to_bank_page(fake_scorer):

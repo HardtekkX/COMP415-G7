@@ -78,11 +78,13 @@ class HealthResponse(_Model):
 
 # --- Scorer demo endpoints (GET /activity, GET /contexts/summary) -------------
 # Only what the scorer may log (pseudonyms, context IDs, sizes, timings,
-# timestamps) plus short base64 prefixes of the ciphertexts it handled. Never
+# timestamps) plus, per ciphertext it handled, a 64-character base64 slice from
+# the middle and a short SHA-256 fingerprint. Never
 # plaintext features, national IDs or decrypted values. extra="forbid" keeps a
 # new field from slipping in without a schema change.
 
-ACTIVITY_PREFIX_CHARS = 64
+ACTIVITY_SLICE_CHARS = 64        # base64 characters from the middle of each blob
+ACTIVITY_FINGERPRINT_HEX = 16    # first hex characters of SHA-256 over the raw bytes
 
 
 class ActivityRecord(_Model):
@@ -90,8 +92,10 @@ class ActivityRecord(_Model):
     pseudonym: Pseudonym
     context_id: ContextId
     ciphertext_bytes: int
-    ciphertext_prefix: Annotated[str, Field(max_length=ACTIVITY_PREFIX_CHARS)]
-    result_prefix: Annotated[str, Field(max_length=ACTIVITY_PREFIX_CHARS)]
+    ciphertext_slice: Annotated[str, Field(max_length=ACTIVITY_SLICE_CHARS)]
+    ciphertext_sha256: Annotated[str, Field(pattern=f"^[0-9a-f]{{{ACTIVITY_FINGERPRINT_HEX}}}$")]
+    result_slice: Annotated[str, Field(max_length=ACTIVITY_SLICE_CHARS)]
+    result_sha256: Annotated[str, Field(pattern=f"^[0-9a-f]{{{ACTIVITY_FINGERPRINT_HEX}}}$")]
     compute_ms: float
 
 

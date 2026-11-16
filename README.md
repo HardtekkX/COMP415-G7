@@ -71,7 +71,8 @@ streamlit run ui/app.py     # UI_BANK_URL / UI_SCORER_URL override the service U
   left the bank (pseudonym, ciphertext size) next to what stayed.
 - **Scorer**: everything the scoring service sees and nothing else: recent
   requests (time, pseudonym, context ID, ciphertext size, compute time), the
-  first 64 base64 characters of a selected ciphertext and result, and the
+  SHA-256 fingerprint and a 64-character base64 slice from the middle of a
+  selected ciphertext and its encrypted result, and the
   registered public contexts. Needs the scorer's demo endpoints, which are on
   unless it was started with `SCORER_DEMO_ENDPOINTS=false`.
 - **Comparison**: the six demo applicants scored through the encrypted path
@@ -90,7 +91,7 @@ Good to know:
 
 ## Status
 
-As of 16 November 2026. Built and tested (167 tests):
+As of 16 November 2026. Built and tested (168 tests):
 
 | Part | Where | Key numbers |
 |---|---|---|
@@ -100,6 +101,9 @@ As of 16 November 2026. Built and tested (167 tests):
 | Bank service + CLI | `bank_service/` | ciphertext 235 KB per request; about 20 ms round trip on one laptop |
 | End to end | `tests/test_e2e.py` | 20 applicants, all decisions agree; max probability error 3.3e-7 over all 300 test rows |
 | Demo screens | `ui/` | Bank, Scorer, Comparison (Streamlit, HTTP only); six demo applicants agree on every decision |
+
+The remaining error is not random noise: over 100 test rows the decrypted logit
+was about 1.4e-6 below the exact plaintext logit every time.
 
 Security rules covered by tests: the scorer never holds a secret key, the bank
 never reads the weights, neither service logs national IDs or feature values.

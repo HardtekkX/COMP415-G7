@@ -42,8 +42,9 @@ API (see plan; binary values as base64):
 - `GET /health` on both services → `{"status": "ok"}`.
 - Demo only (scorer screen), off with `SCORER_DEMO_ENDPOINTS=false` (then 404):
   `GET /activity` → `{records}`, last 50 successful scores newest first, each
-  `{timestamp, pseudonym, context_id, ciphertext_bytes, ciphertext_prefix,
-  result_prefix, compute_ms}` (prefixes = first 64 base64 chars);
+  `{timestamp, pseudonym, context_id, ciphertext_bytes, ciphertext_slice,
+  ciphertext_sha256, result_slice, result_sha256, compute_ms}` (slice = 64
+  base64 chars from the middle; sha256 = first 16 hex chars over the raw bytes);
   `GET /contexts/summary` → `{count, max_contexts, contexts: [{context_id,
   size_bytes, registered_at}]}`.
 
@@ -68,7 +69,7 @@ would need relinearisation keys and more levels.
 - The bank service never reads the model weights. Training exports them to `training/artifacts/model.json` (scoring service only); the bank reads only `training/artifacts/preprocessing.json` (feature order and scaler).
 - The scoring service must not log anything except pseudonyms, context IDs (random, issued by the scorer), ciphertext sizes and timings.
 - The bank service must not log national IDs or plaintext feature values. It logs pseudonyms, decisions, sizes and timings only.
-- `GET /activity` and `GET /contexts/summary` on the scorer (demo screen only) expose only what the scorer may log (pseudonyms, context IDs, sizes, timings, timestamps) plus the first 64 base64 characters of each ciphertext received and each encrypted result returned. Never plaintext features, national IDs or decrypted values. They have no authentication; `SCORER_DEMO_ENDPOINTS=false` turns them off (404), and a real deployment would turn them off or put them behind authentication.
+- `GET /activity` and `GET /contexts/summary` on the scorer (demo screen only) expose only what the scorer may log (pseudonyms, context IDs, sizes, timings, timestamps) plus, for each ciphertext received and each encrypted result returned, 64 base64 characters from the middle (encrypted payload, not the serialization header) and the first 16 hex characters of its SHA-256. Never plaintext features, national IDs or decrypted values. They have no authentication; `SCORER_DEMO_ENDPOINTS=false` turns them off (404), and a real deployment would turn them off or put them behind authentication.
 
 ## Tech stack
 

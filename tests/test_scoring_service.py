@@ -250,8 +250,10 @@ ACTIVITY_FIELDS = {
     "pseudonym": r"[0-9a-f]{64}",
     "context_id": r"[0-9a-f]{32}",
     "ciphertext_bytes": r"\d+",
-    "ciphertext_prefix": r"[A-Za-z0-9+/]{64}",
-    "result_prefix": r"[A-Za-z0-9+/]{64}",
+    "ciphertext_slice": r"[A-Za-z0-9+/]{64}",
+    "ciphertext_sha256": r"[0-9a-f]{16}",
+    "result_slice": r"[A-Za-z0-9+/]{64}",
+    "result_sha256": r"[0-9a-f]{16}",
     "compute_ms": r"[\d.]+(e-?\d+)?",
 }
 
@@ -281,8 +283,25 @@ def test_activity_records_only_allowed_fields(client, bank, context_id):
     assert rec["pseudonym"] == PSEUDONYM
     assert rec["context_id"] == context_id
     assert rec["ciphertext_bytes"] == len(ct)
-    assert rec["ciphertext_prefix"] == b64(ct)[:64]
-    assert rec["result_prefix"] == encrypted_logit[:64]
+    result = base64.b64decode(encrypted_logit)
+    for blob, b64_text, key in [(ct, b64(ct), "ciphertext"), (result, encrypted_logit, "result")]:
+        # A slice of the full base64 text, from its middle (not the header).
+        start = b64_text.index(rec[f"{key}_slice"])
+        assert abs(start + 32 - len(b64_text) / 2) <= 4, (key, start, len(b64_text))
+        assert rec[f"{key}_sha256"] == hashlib.sha256(blob).hexdigest()[:16]
+
+
+def test_same_vector_twice_gives_different_slices_and_fingerprints(client, bank, context_id):
+    # CKKS encryption is randomised: the payload differs every time, and the
+    # slice comes from the payload, not the header the two would share.
+    x = scaled_row(3)
+    for _ in range(2):
+        score(client, context_id, he.encrypt_vector(bank[0], x))
+    second, first = client.get("/activity").json()["records"][:2]
+    for key in ("ciphertext_slice", "ciphertext_sha256", "result_slice", "result_sha256"):
+        assert first[key] != second[key], key
+    same = sum(a == b for a, b in zip(first["ciphertext_slice"], second["ciphertext_slice"]))
+    assert same < 16, same     # about 1 in 64 per character by chance
 
 
 def test_activity_never_holds_plaintext_or_decrypted_values(client, bank, context_id):

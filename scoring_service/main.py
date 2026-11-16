@@ -19,6 +19,7 @@ Env:  SCORER_MODEL_PATH       weights and bias (default training/artifacts/model
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -36,7 +37,8 @@ from fastapi import FastAPI, HTTPException
 from common import he
 from common.api import configure_logger, quiet_validation_errors
 from common.schemas import (
-    ACTIVITY_PREFIX_CHARS,
+    ACTIVITY_FINGERPRINT_HEX,
+    ACTIVITY_SLICE_CHARS,
     ActivityRecord,
     ActivityResponse,
     ContextInfo,
@@ -124,8 +126,9 @@ class ContextStore:
 class ActivityLog:
     """The last `max_size` successful scores, for the demo's scorer screen.
 
-    Records hold only what the scorer may log plus short base64 prefixes of the
-    ciphertext it received and the encrypted logit it returned.
+    Records hold only what the scorer may log plus, for the ciphertext it
+    received and the encrypted logit it returned, a base64 slice from the middle
+    and a short SHA-256 fingerprint.
     """
 
     def __init__(self, max_size: int = ACTIVITY_SIZE):
@@ -145,9 +148,21 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
 
-def _b64_prefix(data: bytes) -> str:
-    # Encode just enough bytes for the prefix (3 bytes -> 4 characters).
-    return b64encode(data[: ACTIVITY_PREFIX_CHARS // 4 * 3])[:ACTIVITY_PREFIX_CHARS]
+def _b64_middle(data: bytes) -> str:
+    """ACTIVITY_SLICE_CHARS base64 characters from the middle of `data`.
+
+    The start of a serialized ciphertext is a header that barely changes between
+    requests; the middle is encrypted payload. Only the needed bytes are encoded:
+    starting on a 3-byte boundary gives the same characters as slicing the full
+    base64 string at that point.
+    """
+    n = ACTIVITY_SLICE_CHARS // 4 * 3
+    start = max(0, (len(data) - n) // 2) // 3 * 3
+    return b64encode(data[start : start + n])[:ACTIVITY_SLICE_CHARS]
+
+
+def _fingerprint(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()[:ACTIVITY_FINGERPRINT_HEX]
 
 
 def _ms_since(start: float) -> float:
@@ -240,8 +255,10 @@ def create_app(
                 pseudonym=req.pseudonym,
                 context_id=req.context_id,
                 ciphertext_bytes=size,
-                ciphertext_prefix=_b64_prefix(req.ciphertext),
-                result_prefix=_b64_prefix(out),
+                ciphertext_slice=_b64_middle(req.ciphertext),
+                ciphertext_sha256=_fingerprint(req.ciphertext),
+                result_slice=_b64_middle(out),
+                result_sha256=_fingerprint(out),
                 compute_ms=round(ms, 3),
             )
         )
