@@ -71,7 +71,13 @@ def require_service(service: Service) -> None:
 
 
 def require_demo_applicants() -> list[dict]:
-    """Load ui/demo_applicants.json, or show the command that creates it and stop."""
+    """The six demo applicants, or show the command that creates them and stop."""
+    return require_demo_data()["applicants"]
+
+
+def require_demo_data() -> dict:
+    """Load ui/demo_applicants.json ({thresholds, applicants}), or show the
+    command that creates it and stop."""
     if not DEMO_APPLICANTS_PATH.exists():
         if TEST_SPLIT_PATH.exists():
             command = DEMO_APPLICANTS_COMMAND
@@ -82,4 +88,73 @@ def require_demo_applicants() -> list[dict]:
             f"Create them from the repository root:\n\n```\n{command}\n```"
         )
         st.stop()
-    return json.loads(DEMO_APPLICANTS_PATH.read_text())["applicants"]
+    return json.loads(DEMO_APPLICANTS_PATH.read_text())
+
+
+# --- POST /apply on the bank -----------------------------------------------------
+
+APPLY_TIMEOUT_S = 60.0
+# Tests set this to an httpx.MockTransport; None means real HTTP.
+_TRANSPORT: httpx.BaseTransport | None = None
+
+
+APPLY_RESPONSE_FIELDS = {
+    "pseudonym", "probability_of_default", "decision", "ciphertext_bytes",
+    "encrypted_logit_bytes", "timings_ms",
+}
+
+
+class ApplyError(Exception):
+    """POST /apply failed. The message is safe to show on screen as Markdown."""
+
+
+def _field_label(loc: str) -> str:
+    from ui.features import BY_NAME  # local import: features.py is UI data only
+
+    name = loc.rsplit(".", 1)[-1]
+    if name == "national_id":
+        return "National ID"
+    return BY_NAME[name].label if name in BY_NAME else loc
+
+
+def apply(national_id: str, features: dict[str, int]) -> dict:
+    """Score one applicant through the bank. Returns the ApplyResponse JSON.
+
+    Raises ApplyError with a readable message for every failure, never with
+    the request body (it holds the national ID and the features).
+    """
+    body = {"national_id": national_id, "features": features}
+    try:
+        with httpx.Client(transport=_TRANSPORT, timeout=APPLY_TIMEOUT_S) as http:
+            resp = http.post(f"{BANK.url}/apply", json=body)
+    except httpx.TimeoutException:
+        raise ApplyError(
+            f"**The bank service did not answer within {APPLY_TIMEOUT_S:.0f} s** ({BANK.url})."
+        ) from None
+    except httpx.HTTPError:
+        raise ApplyError(
+            f"**Bank service is not reachable at {BANK.url}.**\n\n"
+            f"Start it from the repository root:\n\n```\n{BANK.start_command}\n```"
+        ) from None
+
+    if resp.status_code == 200:
+        try:
+            data = resp.json()
+        except ValueError:
+            data = None
+        if not isinstance(data, dict) or not APPLY_RESPONSE_FIELDS <= data.keys():
+            raise ApplyError("**The bank service sent a response the UI does not understand.**")
+        return data
+    if resp.status_code == 502:
+        raise ApplyError(
+            f"**The bank could not get a score from the scoring service.**\n\n"
+            f"Check that it is running:\n\n```\n{SCORER.start_command}\n```"
+        )
+    if resp.status_code == 422:
+        try:
+            fields = resp.json().get("fields", [])
+        except ValueError:
+            fields = []
+        names = ", ".join(_field_label(f) for f in fields) or "unknown fields"
+        raise ApplyError(f"**The bank rejected the application as invalid:** {names}.")
+    raise ApplyError(f"**The bank service returned HTTP {resp.status_code}.**")
