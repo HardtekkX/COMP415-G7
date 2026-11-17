@@ -91,25 +91,27 @@ Good to know:
 
 ## Status
 
-As of 16 November 2026. Built and tested (168 tests):
+As of 17 November 2026. Built and tested (169 tests):
 
 | Part | Where | Key numbers |
 |---|---|---|
 | Model | `training/` | 10 features, test accuracy 0.760 (baseline 0.700), AUC 0.770 |
 | CKKS setup | `common/he.py` | N=8192, chain [60, 40, 60], scale 2^40, minimal rotation keys |
-| Scoring service | `scoring_service/` | about 5 ms per encrypted score as measured by the running service (about 4 ms in-process); public context 2.9 MB, sent once |
-| Bank service + CLI | `bank_service/` | ciphertext 235 KB per request; about 15–18 ms round trip on one laptop |
-| End to end | `tests/test_e2e.py` | 20 applicants, all decisions agree; max probability error 3.3e-7 over all 300 test rows |
+| Scoring service | `scoring_service/` | about 6.4 ms median per encrypted score as measured by the running service (about 4 ms in-process); public context 2.9 MB, sent once |
+| Bank service + CLI | `bank_service/` | ciphertext 235 KB per request; about 19 ms per applicant inside the bank, 22 ms client round trip (median, one laptop) |
+| End to end | `tests/test_e2e.py` | 20 applicants, all decisions agree |
+| Evaluation | `evaluation/` | all 300 test rows: 300/300 decisions agree, max probability error 3.9e-7; table in [evaluation/results.md](evaluation/results.md) |
 | Demo screens | `ui/` | Bank, Scorer, Comparison (Streamlit, HTTP only); six demo applicants agree on every decision |
 
-The remaining error is not random noise: over 100 test rows the decrypted logit
-was about 1.4e-6 below the exact plaintext logit every time.
+The remaining error is not random noise: within one key set the decrypted logit
+is off from the exact plaintext logit by almost the same amount on every row
+(1.4e-6 above it in the committed run, spread 1.7e-7). The size and sign of that
+offset change with each fresh key set (seen from 0.8e-6 to 2.6e-6, either sign).
 
 Security rules covered by tests: the scorer never holds a secret key, the bank
 never reads the weights, neither service logs national IDs or feature values.
 
 Still open, per [PROJECT_PLAN.md](PROJECT_PLAN.md):
-- The five measurements over the full test set (`evaluation/`).
 - Report, slides, two demo rehearsals, backup video.
 - Optional: HTTPS between services, Docker Compose, stretch goals.
 

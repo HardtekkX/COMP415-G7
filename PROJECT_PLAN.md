@@ -81,7 +81,7 @@ Measured numbers for 10 features:
 | Public context sent to the scorer | 2.9 MB, once per bank (`POST /contexts`) |
 | Ciphertext per request | 235 KB |
 | Logit error after decryption | about 1e-6 |
-| Scorer time for `w · x + b` | about 4 ms in-process (`notebooks/he_params.py`); about 5 ms as measured by the running scoring service |
+| Scorer time for `w · x + b` | about 4 ms in-process (`notebooks/he_params.py`); about 6.4 ms median as measured by the running scoring service (`evaluation/results.md`) |
 
 Stretch goal note: a server-side polynomial sigmoid multiplies ciphertexts, so it would need the relinearisation keys in the scorer context and a longer chain (one extra level per multiplication depth), which means larger keys and ciphertexts. This configuration does not support it.
 

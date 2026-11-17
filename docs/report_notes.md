@@ -37,11 +37,17 @@ Material for the report that is not in the plan or the README.
   likely a little optimistic.
 - **CKKS is approximate.** Wrong parameters give wrong scores or low security.
   With the chosen parameters (N=8192, chain [60, 40, 60], scale 2^40) the
-  largest probability error over all 300 test rows is about 3.3e-7, and all 300
-  decisions agree with plaintext scoring.
-- **The logit error is a constant offset, not random noise.** Over all 300 test
-  rows the decrypted logit was below the exact plaintext logit every time, by
-  1.0e-6 to 1.8e-6 (mean about 1.4e-6). Report it as a small systematic bias
-  from the CKKS encoding and rescaling, not as noise that averages out. It is
-  far too small to change any decision at the 0.25 / 0.50 thresholds unless a
-  probability lies within about 3e-7 of a threshold.
+  largest probability error over all 300 test rows is 3.9e-7 in the committed
+  run (`evaluation/results.json`), and all 300 decisions agree with plaintext
+  scoring. The maximum depends on the key set: 30-row runs with fresh keys gave
+  1.7e-7 to 6.1e-7.
+- **The logit error is a near-constant offset per key set, not random noise.**
+  In the committed run over all 300 test rows the decrypted logit was above the
+  exact plaintext logit every time, by 1.0e-6 to 1.75e-6 (mean 1.38e-6, standard
+  deviation 1.7e-7). The offset is fixed by the key set, not by the
+  applicant: in runs with fresh keys it was sometimes below and sometimes above,
+  with means from 0.8e-6 to 2.6e-6 in size. (An earlier note said "below every
+  time"; that held for one key set only.) Report it as a small bias per key set
+  from the CKKS encoding and rescaling, not as noise that averages out over
+  applicants. It is far too small to change any decision at the 0.25 / 0.50
+  thresholds unless a probability lies within about 1e-6 of a threshold.

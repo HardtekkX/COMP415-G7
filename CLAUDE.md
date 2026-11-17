@@ -58,8 +58,8 @@ rotation steps the sum needs (derived from the vector length), scorer context
 without secret key, public key or relinearisation keys. Lives in `common/he.py`;
 `USE_MINIMAL_GALOIS_KEYS=false` falls back to TenSEAL's `generate_galois_keys()`.
 Measured for 10 features: context 2.9 MB (one-off), ciphertext 235 KB, logit
-error about 1e-6, about 4 ms per score in-process (about 5 ms as measured by
-the running service). A server-side sigmoid (stretch goal)
+error about 1e-6, about 4 ms per score in-process (about 6.4 ms median as
+measured by the running service, see `evaluation/results.md`). A server-side sigmoid (stretch goal)
 would need relinearisation keys and more levels.
 
 ## Security rules for the code
@@ -99,7 +99,7 @@ training/           train.py; artifacts/: model.json (scorer), preprocessing.jso
 ui/                 Streamlit app (app.py): Home, Bank, Scorer and Comparison pages in views/;
                     demo_applicants.py writes the git-ignored demo_applicants.json
 scripts/            setup_demo.py: training, then demo applicants
-evaluation/         measurement script and results (to do)
+evaluation/         run.py (measurements over test_split.csv); results.json, results.md
 notebooks/          he_spike.py (first TenSEAL test), he_params.py (CKKS parameter measurements)
 tests/              unit, UI and end-to-end tests
 docs/               report notes and drafts
@@ -146,5 +146,7 @@ python scripts/setup_demo.py              # training, then demo applicants
 # UI_SCORER_URL default to 127.0.0.1:8000 / :8001). Pages: Bank, Scorer
 # (needs SCORER_DEMO_ENDPOINTS on), Comparison (six demo applicants only).
 streamlit run ui/app.py
-# Evaluate         (TODO) python -m evaluation.run
+# Evaluate (needs training; starts both services itself on free ports with temp
+# keys; writes evaluation/results.json and results.md; --rows N for a quick run)
+python -m evaluation.run
 ```
